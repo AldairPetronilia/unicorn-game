@@ -1,5 +1,3 @@
-export type GameDifficulty = 'easy' | 'medium' | 'hard';
-
 export interface Unicorn {
   x: number;
   y: number;
