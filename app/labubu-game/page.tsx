@@ -113,7 +113,7 @@ export default function LabubuGame() {
       }
 
       // Slightly reduced Labubu spawn rate (still ramps with score)
-      const spawnInterval = 1700 - Math.min(scoreRef.current * 3, 800); // min ~900ms
+      const spawnInterval = 1500 - Math.min(scoreRef.current * 5, 800); // min ~900ms
       if (timestamp - lastSpawn > spawnInterval) {
         gameState.labubus.push({
           x: Math.random() * (canvas.width - 60),
