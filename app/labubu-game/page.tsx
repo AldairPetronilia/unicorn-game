@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './game.css';
 import { GameSounds } from './sounds';
+import type { GameState, Labubu, Rainbow, Heart, Unicorn } from './types';
 
 export default function LabubuGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -12,10 +13,10 @@ export default function LabubuGame() {
   const [lives, setLives] = useState(3);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const animationRef = useRef<number>();
-  const soundsRef = useRef<GameSounds>();
+  const animationRef = useRef<number | undefined>(undefined);
+  const soundsRef = useRef<GameSounds | undefined>(undefined);
   
-  const gameStateRef = useRef({
+  const gameStateRef = useRef<GameState>({
     unicorn: { 
       x: 0, 
       y: 0, 
@@ -28,12 +29,12 @@ export default function LabubuGame() {
       magnetPull: false,
       magnetTimer: 0
     },
-    labubus: [] as any[],
-    rainbows: [] as any[],
-    hearts: [] as any[],
-    particles: [] as any[],
-    stars: [] as any[],
-    touchX: null as number | null,
+    labubus: [],
+    rainbows: [],
+    hearts: [],
+    particles: [],
+    stars: [],
+    touchX: null,
     moveDirection: 0,
     combo: 0,
     powerUpActive: false,
@@ -315,7 +316,7 @@ export default function LabubuGame() {
       ctx.fill();
     };
     
-    const drawLabubu = (ctx: CanvasRenderingContext2D, labubu: any) => {
+    const drawLabubu = (ctx: CanvasRenderingContext2D, labubu: Labubu) => {
       ctx.save();
       ctx.translate(labubu.x + labubu.width / 2, labubu.y + labubu.height / 2);
       ctx.rotate(labubu.rotation);
@@ -436,7 +437,7 @@ export default function LabubuGame() {
       ctx.restore();
     };
     
-    const drawUnicorn = (ctx: CanvasRenderingContext2D, unicorn: any) => {
+    const drawUnicorn = (ctx: CanvasRenderingContext2D, unicorn: Unicorn) => {
       ctx.save();
       
       // Apply bounce animation
@@ -693,7 +694,7 @@ export default function LabubuGame() {
       ctx.restore();
     };
     
-    const drawRainbow = (ctx: CanvasRenderingContext2D, rainbow: any) => {
+    const drawRainbow = (ctx: CanvasRenderingContext2D, rainbow: Rainbow) => {
       const colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
       const stripeHeight = rainbow.height / colors.length;
       
@@ -703,7 +704,7 @@ export default function LabubuGame() {
       });
     };
     
-    const drawRainbowTrail = (ctx: CanvasRenderingContext2D, unicorn: any) => {
+    const drawRainbowTrail = (ctx: CanvasRenderingContext2D, unicorn: Unicorn) => {
       const colors = ['#FF000030', '#FF7F0030', '#FFFF0030', '#00FF0030', '#0000FF30', '#4B008230', '#9400D330'];
       colors.forEach((color, i) => {
         ctx.fillStyle = color;
@@ -711,7 +712,7 @@ export default function LabubuGame() {
       });
     };
     
-    const drawHeart = (ctx: CanvasRenderingContext2D, heart: any) => {
+    const drawHeart = (ctx: CanvasRenderingContext2D, heart: Heart) => {
       ctx.fillStyle = '#FF1493';
       ctx.beginPath();
       ctx.moveTo(heart.x + 20, heart.y + 10);
@@ -734,7 +735,7 @@ export default function LabubuGame() {
       
       // Lives
       for (let i = 0; i < lives; i++) {
-        drawHeart(ctx, { x: canvas.width - 60 - i * 50, y: 20, width: 40, height: 40 });
+        drawHeart(ctx, { x: canvas.width - 60 - i * 50, y: 20, width: 40, height: 40, speed: 0 });
       }
       
       // Combo
@@ -752,7 +753,7 @@ export default function LabubuGame() {
       }
     };
     
-    const checkCollision = (rect1: any, rect2: any) => {
+    const checkCollision = (rect1: { x: number; y: number; width: number; height: number }, rect2: { x: number; y: number; width: number; height: number }) => {
       return rect1.x < rect2.x + rect2.width &&
              rect1.x + rect1.width > rect2.x &&
              rect1.y < rect2.y + rect2.height &&
