@@ -6,26 +6,26 @@ import { GameSounds } from './sounds';
 import type { GameState, Labubu, Rainbow, Heart, Unicorn, GameDifficulty } from './types';
 
 type ModeSettings = {
-  spawnBaseMs: number;           // starting interval
-  spawnFloorMs: number;          // minimum interval cap
-  spawnSlopeMsPerPoint: number;  // how fast interval shrinks with score
-  speedBase: number;             // base falling speed
-  speedMaxAdd: number;           // max added by score ramp
-  blackOverall: number;          // overall per-labubu black probability for this mode
-  eventTwoBlackProb?: number;    // cap probability to spawn 2 blacks (per event)
-  eventThreeBlackProb?: number;  // cap probability to spawn 3 blacks (per event)
-  easySingleBlackOnScreen?: boolean; // if true, never allow >1 black on screen
+  spawnBaseMs: number;
+  spawnFloorMs: number;
+  spawnSlopeMsPerPoint: number;
+  speedBase: number;
+  speedMaxAdd: number;
+  blackOverall: number;
+  eventTwoBlackProb?: number;
+  eventThreeBlackProb?: number;
+  easySingleBlackOnScreen?: boolean;
 };
 
 const MODE: Record<GameDifficulty, ModeSettings> = {
   easy: {
     spawnBaseMs: 1500,
     spawnFloorMs: 900,
-    spawnSlopeMsPerPoint: 3, // hits floor at ~200
+    spawnSlopeMsPerPoint: 3,
     speedBase: 3.2,
     speedMaxAdd: 3.8,
     blackOverall: 0.08,
-    easySingleBlackOnScreen: true, // at most 1 black at a time on screen
+    easySingleBlackOnScreen: true,
   },
   medium: {
     spawnBaseMs: 1400,
@@ -33,8 +33,8 @@ const MODE: Record<GameDifficulty, ModeSettings> = {
     spawnSlopeMsPerPoint: 4,
     speedBase: 3.8,
     speedMaxAdd: 4.2,
-    blackOverall: 0.10,       // 10% overall black chance
-    eventTwoBlackProb: 0.10,  // ≤10% chance to get 2 blacks in a spawn
+    blackOverall: 0.10,
+    eventTwoBlackProb: 0.10,
   },
   hard: {
     spawnBaseMs: 1300,
@@ -42,16 +42,13 @@ const MODE: Record<GameDifficulty, ModeSettings> = {
     spawnSlopeMsPerPoint: 4.25,
     speedBase: 4.2,
     speedMaxAdd: 5.0,
-    blackOverall: 0.15,        // 15% overall black chance
-    eventThreeBlackProb: 0.10, // ≤10% chance to get 3 blacks in a spawn
+    blackOverall: 0.15,
+    eventThreeBlackProb: 0.10,
   },
 };
 
-// Unchanged “good” Labubu group logic (same across all difficulties)
-const TUNING_GROUPS = {
-  p2Base: 0.10, p2Max: 0.30,
-  p3Base: 0.02, p3Max: 0.12,
-};
+// Good-labubu group probabilities shared across difficulties
+const TUNING_GROUPS = { p2Base: 0.10, p2Max: 0.30, p3Base: 0.02, p3Max: 0.12 };
 
 export default function LabubuGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -59,15 +56,16 @@ export default function LabubuGame() {
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
-  const [lives, setLives] = useState(3);
+  const [, setLives] = useState(3); // value unused; lives drawn on canvas
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [difficulty, setDifficulty] = useState<GameDifficulty>('easy');
 
-  // Refs to use inside RAF loop
+  // Refs used inside RAF loop
   const scoreRef = useRef(0);
   const livesRef = useRef(3);
   const diffRef = useRef<GameDifficulty>('easy');
+  const highScoreRef = useRef(0);
 
   const animationRef = useRef<number | undefined>(undefined);
   const soundsRef = useRef<GameSounds | undefined>(undefined);
@@ -94,12 +92,17 @@ export default function LabubuGame() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('labubuHighScore');
-      if (saved) setHighScore(parseInt(saved, 10));
+      if (saved) {
+        const hs = parseInt(saved, 10);
+        setHighScore(hs);
+        highScoreRef.current = hs;
+      }
       soundsRef.current = new GameSounds();
       soundsRef.current.init();
     }
   }, []);
 
+  useEffect(() => { highScoreRef.current = highScore; }, [highScore]);
   useEffect(() => { diffRef.current = difficulty; }, [difficulty]);
 
   useEffect(() => {
@@ -115,11 +118,11 @@ export default function LabubuGame() {
     };
     resize();
 
-    const gameState = gameStateRef.current;
-    if (gameState.frameCount === 0) {
-      gameState.unicorn.x = canvas.width / 2 - gameState.unicorn.width / 2;
-      gameState.unicorn.y = canvas.height - 140;
-      gameState.unicorn.targetX = gameState.unicorn.x;
+    const gs = gameStateRef.current;
+    if (gs.frameCount === 0) {
+      gs.unicorn.x = canvas.width / 2 - gs.unicorn.width / 2;
+      gs.unicorn.y = canvas.height - 140;
+      gs.unicorn.targetX = gs.unicorn.x;
     }
 
     let lastSpawn = 0;
@@ -137,32 +140,26 @@ export default function LabubuGame() {
       return r < p3 ? 3 : r < p3 + p2 ? 2 : 1;
     };
 
-    // Determine how many blacks to assign in this event, honoring mode rules
     const chooseBlackCountForEvent = (count: number): number => {
       const mode = MODE[diffRef.current];
-      const blacksOnScreen = gameStateRef.current.labubus.filter(l => l.type === 'black').length;
+      const blacksOnScreen = gameStateRef.current.labubus.filter((l) => l.type === 'black').length;
 
-      // Easy: only 1 black at a time on screen AND max 1 in a spawn event
       if (diffRef.current === 'easy') {
         if (mode.easySingleBlackOnScreen && blacksOnScreen >= 1) return 0;
         return Math.random() < mode.blackOverall ? 1 : 0;
       }
 
-      // Medium: overall black 10%, up to 2 in a spawn, with ≤10% chance for 2
       if (diffRef.current === 'medium') {
         if (count >= 2 && mode.eventTwoBlackProb && Math.random() < mode.eventTwoBlackProb) {
           return 2;
         }
-        // otherwise at most 1
         return Math.random() < mode.blackOverall ? 1 : 0;
       }
 
-      // Hard: overall black 15%, up to 3 in a spawn, with ≤10% chance for 3
       if (diffRef.current === 'hard') {
         if (count >= 3 && mode.eventThreeBlackProb && Math.random() < mode.eventThreeBlackProb) {
           return 3;
         }
-        // otherwise sample per labubu but cap at 2 so "3" only comes from the 10% branch
         let cnt = 0;
         for (let i = 0; i < count; i++) {
           if (Math.random() < mode.blackOverall) cnt++;
@@ -180,14 +177,13 @@ export default function LabubuGame() {
       for (let i = 0; i < count; i++) {
         let x = Math.random() * (canvas.width - 60);
         let tries = 0;
-        while (xs.some(xx => Math.abs(xx - x) < minGap) && tries < 50) {
+        while (xs.some((xx) => Math.abs(xx - x) < minGap) && tries < 50) {
           x = Math.random() * (canvas.width - 60);
           tries++;
         }
         xs.push(x);
       }
 
-      // Decide which indices (within this group) are black
       let blackToPlace = chooseBlackCountForEvent(count);
       const blackIndices: number[] = [];
       while (blackToPlace > 0) {
@@ -200,25 +196,14 @@ export default function LabubuGame() {
 
       xs.forEach((x, i) => {
         const isBlack = blackIndices.includes(i);
-        const type: Labubu['type'] = isBlack
-          ? 'black'
-          : Math.random() < 0.10
-            ? 'golden'
-            : 'normal';
+        const type: Labubu['type'] = isBlack ? 'black' : Math.random() < 0.10 ? 'golden' : 'normal';
 
         const mode = MODE[diffRef.current];
         const speed = mode.speedBase + Math.min(scoreRef.current / 35, mode.speedMaxAdd);
 
-        gameState.labubus.push({
-          x,
-          y: -60,
-          width: 60,
-          height: 60,
-          speed,
-          type,
-          rotation: 0,
-          wobble: Math.random() * Math.PI * 2,
-          scale: 1,
+        gs.labubus.push({
+          x, y: -60, width: 60, height: 60,
+          speed, type, rotation: 0, wobble: Math.random() * Math.PI * 2, scale: 1,
         });
       });
 
@@ -228,37 +213,27 @@ export default function LabubuGame() {
     const gameLoop = (timestamp: number) => {
       if (!ctx || !canvas) return;
 
-      // Clear
+      // Clear & background
       ctx.fillStyle = '#FFE5F1';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-
       drawClouds(ctx, canvas);
 
-      const gs = gameStateRef.current;
       gs.frameCount++;
       gs.unicorn.wingFlap = Math.sin(gs.frameCount * 0.15) * 5;
       gs.unicorn.bounce = Math.sin(gs.frameCount * 0.1) * 3;
 
-      // Input → targetX
-      if (gs.touchX !== null) {
-        gs.unicorn.targetX = gs.touchX - gs.unicorn.width / 2;
-      } else if (gs.moveDirection !== 0) {
-        gs.unicorn.targetX += gs.moveDirection * 10;
-      }
+      // Input
+      if (gs.touchX !== null) gs.unicorn.targetX = gs.touchX - gs.unicorn.width / 2;
+      else if (gs.moveDirection !== 0) gs.unicorn.targetX += gs.moveDirection * 10;
 
       // Clamp + ease
       gs.unicorn.targetX = Math.max(0, Math.min(canvas.width - gs.unicorn.width, gs.unicorn.targetX));
       gs.unicorn.x += (gs.unicorn.targetX - gs.unicorn.x) * 0.25;
-
       if (gs.unicorn.catchAnimation > 0) gs.unicorn.catchAnimation--;
 
       // Spawn pacing by mode
       const mode = MODE[diffRef.current];
-      const desired = Math.max(
-        mode.spawnFloorMs,
-        mode.spawnBaseMs - scoreRef.current * mode.spawnSlopeMsPerPoint
-      );
-
+      const desired = Math.max(mode.spawnFloorMs, mode.spawnBaseMs - scoreRef.current * mode.spawnSlopeMsPerPoint);
       if (timestamp - lastSpawn > desired) {
         const n = chooseGroupSize();
         spawnLabubuGroup(n, timestamp);
@@ -266,23 +241,17 @@ export default function LabubuGame() {
 
       // Rainbows
       if (timestamp - rainbowSpawn > 15000) {
-        gs.rainbows.push({
-          x: Math.random() * (canvas.width - 80),
-          y: -80, width: 80, height: 40, speed: 3,
-        });
+        gs.rainbows.push({ x: Math.random() * (canvas.width - 80), y: -80, width: 80, height: 40, speed: 3 });
         rainbowSpawn = timestamp;
       }
 
       // Hearts
       if (timestamp - heartSpawn > 30000 && livesRef.current < 5) {
-        gs.hearts.push({
-          x: Math.random() * (canvas.width - 40),
-          y: -40, width: 40, height: 40, speed: 2,
-        });
+        gs.hearts.push({ x: Math.random() * (canvas.width - 40), y: -40, width: 40, height: 40, speed: 2 });
         heartSpawn = timestamp;
       }
 
-      // LABUBUS
+      // Labubus
       gs.labubus = gs.labubus.filter((l) => {
         l.y += l.speed;
         l.rotation += 0.05;
@@ -302,15 +271,12 @@ export default function LabubuGame() {
               }
               return next;
             });
-            // dark particles
+            // particles
             for (let i = 0; i < 12; i++) {
               gs.particles.push({
-                x: l.x + l.width / 2,
-                y: l.y + l.height / 2,
-                vx: (Math.random() - 0.5) * 9,
-                vy: (Math.random() - 0.5) * 9,
-                life: 35, size: Math.random() * 3 + 2,
-                color: '#222', type: Math.random() > 0.5 ? 'star' : 'circle',
+                x: l.x + l.width / 2, y: l.y + l.height / 2,
+                vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9,
+                life: 35, size: Math.random() * 3 + 2, color: '#222', type: Math.random() > 0.5 ? 'star' : 'circle',
               });
             }
             return false;
@@ -322,8 +288,9 @@ export default function LabubuGame() {
           setScore((prev) => {
             const next = prev + gained;
             scoreRef.current = next;
-            if (next > highScore) {
+            if (next > highScoreRef.current) {
               setHighScore(next);
+              highScoreRef.current = next;
               if (typeof window !== 'undefined') {
                 localStorage.setItem('labubuHighScore', next.toString());
               }
@@ -337,10 +304,8 @@ export default function LabubuGame() {
 
           for (let i = 0; i < 15; i++) {
             gs.particles.push({
-              x: l.x + l.width / 2,
-              y: l.y + l.height / 2,
-              vx: (Math.random() - 0.5) * 10,
-              vy: (Math.random() - 0.5) * 10,
+              x: l.x + l.width / 2, y: l.y + l.height / 2,
+              vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
               life: 40, size: Math.random() * 4 + 2,
               color: l.type === 'golden' ? '#FFD700' : '#FF69B4',
               type: Math.random() > 0.5 ? 'star' : 'circle',
@@ -370,7 +335,7 @@ export default function LabubuGame() {
         return true;
       });
 
-      // RAINBOWS
+      // Rainbows
       gs.rainbows = gs.rainbows.filter((r) => {
         r.y += r.speed;
         if (checkCollision(gs.unicorn, r)) {
@@ -384,7 +349,7 @@ export default function LabubuGame() {
         return true;
       });
 
-      // HEARTS
+      // Hearts
       gs.hearts = gs.hearts.filter((h) => {
         h.y += h.speed;
         if (checkCollision(gs.unicorn, h)) {
@@ -401,7 +366,7 @@ export default function LabubuGame() {
         return true;
       });
 
-      // PARTICLES
+      // Particles
       gs.particles = gs.particles.filter((p) => {
         p.x += p.vx; p.y += p.vy; p.vy += 0.3; p.life--;
         if (p.life > 0) {
@@ -431,7 +396,7 @@ export default function LabubuGame() {
         return false;
       });
 
-      // POWER-UP
+      // Power-up
       if (gs.powerUpActive) {
         gs.powerUpTimer--;
         if (gs.powerUpTimer <= 0) gs.powerUpActive = false;
@@ -439,7 +404,6 @@ export default function LabubuGame() {
 
       if (gs.powerUpActive) drawRainbowTrail(ctx, gs.unicorn);
       drawUnicorn(ctx, gs.unicorn);
-
       drawUI(ctx, canvas);
 
       animationRef.current = requestAnimationFrame(gameLoop);
@@ -471,7 +435,6 @@ export default function LabubuGame() {
       else if (labubu.type === 'black') { ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 20; }
       else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; }
 
-      // Body gradient
       let gradient: CanvasGradient;
       if (labubu.type === 'golden') {
         gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
@@ -485,7 +448,6 @@ export default function LabubuGame() {
       }
       ctx.fillStyle = gradient;
 
-      // Body
       ctx.beginPath();
       ctx.ellipse(0, 0, labubu.width / 2 - 2, labubu.height / 2 - 2, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -548,31 +510,13 @@ export default function LabubuGame() {
       ctx.scale(catchScale, catchScale);
       ctx.translate(-45, -45);
 
+      // Shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
       ctx.beginPath();
       ctx.ellipse(45, 85, 35, 8, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      const wingFlap = unicorn.wingFlap || 0;
-
-      // wings (trimmed for brevity)
-      ctx.save();
-      ctx.translate(20, 40);
-      ctx.rotate(-0.3 + Math.sin(wingFlap * 0.1) * 0.2);
-      const wingGradientL = ctx.createLinearGradient(-20, 0, 0, 30);
-      wingGradientL.addColorStop(0, 'rgba(255, 182, 193, 0.95)');
-      wingGradientL.addColorStop(0.5, 'rgba(255, 192, 203, 0.75)');
-      wingGradientL.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
-      ctx.fillStyle = wingGradientL;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(-25, 10, -20, 30);
-      ctx.quadraticCurveTo(-15, 35, -5, 35);
-      ctx.quadraticCurveTo(-10, 20, 0, 0);
-      ctx.fill();
-      ctx.restore();
-
-      // body
+      // Body
       const bodyGradient = ctx.createRadialGradient(45, 50, 10, 45, 50, 35);
       bodyGradient.addColorStop(0, '#FFFFFF');
       bodyGradient.addColorStop(0.7, '#FFF5F5');
@@ -582,7 +526,7 @@ export default function LabubuGame() {
       ctx.ellipse(45, 50, 35, 32, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // head
+      // Head
       const headGradient = ctx.createRadialGradient(45, 20, 5, 45, 20, 25);
       headGradient.addColorStop(0, '#FFFFFF');
       headGradient.addColorStop(1, '#FFF5F5');
@@ -591,7 +535,7 @@ export default function LabubuGame() {
       ctx.ellipse(45, 20, 25, 22, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // eye
+      // Eye
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.ellipse(55, 18, 5, 6, 0, 0, Math.PI * 2);
@@ -634,7 +578,6 @@ export default function LabubuGame() {
         const padX = 12, padY = 8;
         const w = ctx.measureText(text).width + padX * 2;
         const h = 34 + padY * 0.5;
-
         ctx.fillStyle = 'rgba(255,255,255,0.7)';
         ctx.beginPath();
         roundRect(ctx, x, y - 26, w, h, 12);
@@ -644,7 +587,7 @@ export default function LabubuGame() {
       };
 
       chip(20, 40, `Score: ${scoreRef.current}`, '#B83280');
-      chip(20, 80, `Best: ${highScore}`, '#C27803');
+      chip(20, 80, `Best: ${highScoreRef.current}`, '#C27803');
       chip(20, 120, `Mode: ${diffRef.current.toUpperCase()}`, '#3f6');
 
       for (let i = 0; i < livesRef.current; i++) {
@@ -664,10 +607,7 @@ export default function LabubuGame() {
       }
     };
 
-    const roundRect = (
-      ctx: CanvasRenderingContext2D,
-      x: number, y: number, w: number, h: number, r: number
-    ) => {
+    const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
       ctx.beginPath();
       ctx.moveTo(x + r, y);
       ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -680,12 +620,11 @@ export default function LabubuGame() {
     const checkCollision = (
       a: { x: number; y: number; width: number; height: number },
       b: { x: number; y: number; width: number; height: number }
-    ) => (
+    ) =>
       a.x < b.x + b.width &&
       a.x + a.width > b.x &&
       a.y < b.y + b.height &&
-      a.y + a.height > b.y
-    );
+      a.y + a.height > b.y;
 
     const endGame = () => {
       setGameStarted(false);
@@ -697,18 +636,18 @@ export default function LabubuGame() {
       e.preventDefault();
       soundsRef.current?.unlock(); // mobile audio unlock
       if (e.touches.length > 0) {
-        gameState.touchX = e.touches[0].clientX;
+        gs.touchX = e.touches[0].clientX;
       }
     };
-    const handleTouchEnd = () => { gameState.touchX = null; };
+    const handleTouchEnd = () => { gs.touchX = null; };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') gameState.moveDirection = -1;
-      if (e.key === 'ArrowRight') gameState.moveDirection = 1;
+      if (e.key === 'ArrowLeft') gs.moveDirection = -1;
+      if (e.key === 'ArrowRight') gs.moveDirection = 1;
       if (e.key === ' ') { e.preventDefault(); setIsPaused((p) => !p); }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') gameState.moveDirection = 0;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') gs.moveDirection = 0;
     };
 
     canvas.addEventListener('touchstart', handleTouch, { passive: false });
@@ -729,20 +668,17 @@ export default function LabubuGame() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('resize', resize);
     };
-  }, [gameStarted, isPaused]); // keep unicorn position stable
+  }, [gameStarted, isPaused]); // no 'highScore' captured here; use ref instead
 
   const startGame = async () => {
-    // Reset state & refs
     setScore(0); scoreRef.current = 0;
     setLives(3); livesRef.current = 3;
 
-    // Set difficulty ref
     diffRef.current = difficulty;
 
     setGameStarted(true);
     setIsPaused(false);
 
-    // Mobile audio unlock + start music
     await soundsRef.current?.unlock();
     soundsRef.current?.playBackgroundMusic();
 
@@ -774,9 +710,7 @@ export default function LabubuGame() {
     const muted = soundsRef.current?.toggleMute();
     setIsMuted(muted || false);
   };
-
   const togglePause = () => setIsPaused((p) => !p);
-
   const onDiffClick = (d: GameDifficulty) => setDifficulty(d);
 
   return (
@@ -791,18 +725,9 @@ export default function LabubuGame() {
               <p>🎮 Touch / Arrow keys to move • ⏸️ Space or Pause to pause</p>
 
               <div className="difficulty">
-                <button
-                  className={`diff-btn ${difficulty === 'easy' ? 'active' : ''}`}
-                  onClick={() => onDiffClick('easy')}
-                >Easy</button>
-                <button
-                  className={`diff-btn ${difficulty === 'medium' ? 'active' : ''}`}
-                  onClick={() => onDiffClick('medium')}
-                >Medium</button>
-                <button
-                  className={`diff-btn ${difficulty === 'hard' ? 'active' : ''}`}
-                  onClick={() => onDiffClick('hard')}
-                >Hard</button>
+                <button className={`diff-btn ${difficulty === 'easy' ? 'active' : ''}`} onClick={() => onDiffClick('easy')}>Easy</button>
+                <button className={`diff-btn ${difficulty === 'medium' ? 'active' : ''}`} onClick={() => onDiffClick('medium')}>Medium</button>
+                <button className={`diff-btn ${difficulty === 'hard' ? 'active' : ''}`} onClick={() => onDiffClick('hard')}>Hard</button>
               </div>
 
               <div className="legend">
@@ -811,47 +736,36 @@ export default function LabubuGame() {
                   <li><span>⭐</span> <span>Golden Labubu: <span className="badge">+50</span> points</span></li>
                   <li><span>🌈</span> <span>Rainbow: <strong>2× points</strong> for <strong>5s</strong></span></li>
                   <li><span>💖</span> <span>Heart: <strong>+1 life</strong> (max <strong>5</strong>)</span></li>
-                  <li><span>⚫</span> <span><strong>Black Labubu:</strong> <span className="badge">-1 life</span> &amp; combo reset</span></li>
+                  <li><span>⚫</span> <span><strong>Black Labubu:</strong> <span className="badge">-1 life</span> & combo reset</span></li>
                 </ul>
-                <p style={{marginTop:8}}>
-                  <strong>Mode rules:</strong><br/>
-                  Easy: at most 1 black on screen and per spawn.<br/>
-                  Medium: 10% overall black; ≤10% events with 2 blacks.<br/>
+                <p style={{ marginTop: 8 }}>
+                  <strong>Mode rules:</strong><br />
+                  Easy: at most 1 black on screen & per spawn.<br />
+                  Medium: 10% overall black; ≤10% events with 2 blacks.<br />
                   Hard: 15% overall black; ≤10% events with 3 blacks.
                 </p>
               </div>
-            </div>
 
-            {score > 0 && (
-              <div className="game-over-stats">
-                <p className="final-score">Final Score: {score}</p>
-                <p className="high-score">Best Score: {highScore}</p>
-              </div>
-            )}
-            <button className="play-button" onClick={startGame}>
-              {score > 0 ? 'Play Again! 🎮' : 'Start Game! 🎮'}
-            </button>
+              {score > 0 && (
+                <div className="game-over-stats">
+                  <p className="final-score">Final Score: {score}</p>
+                  <p className="high-score">Best Score: {highScore}</p>
+                </div>
+              )}
+              <button className="play-button" onClick={startGame}>
+                {score > 0 ? 'Play Again! 🎮' : 'Start Game! 🎮'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Mobile-friendly control buttons */}
       {gameStarted && (
         <div className="controls">
-          <button
-            className="pause-button"
-            onClick={togglePause}
-            aria-label={isPaused ? 'Resume' : 'Pause'}
-            title={isPaused ? 'Resume' : 'Pause'}
-          >
+          <button className="pause-button" onClick={togglePause} aria-label={isPaused ? 'Resume' : 'Pause'} title={isPaused ? 'Resume' : 'Pause'}>
             {isPaused ? '▶️' : '⏸️'}
           </button>
-          <button
-            className="mute-button"
-            onClick={toggleMute}
-            aria-label={isMuted ? 'Unmute' : 'Mute'}
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
+          <button className="mute-button" onClick={toggleMute} aria-label={isMuted ? 'Unmute' : 'Mute'} title={isMuted ? 'Unmute' : 'Mute'}>
             {isMuted ? '🔇' : '🔊'}
           </button>
         </div>
@@ -869,10 +783,7 @@ export default function LabubuGame() {
       <canvas
         ref={canvasRef}
         className="game-canvas"
-        onClick={() => {
-          // allow unpausing on tap (handy on mobile)
-          if (isPaused) setIsPaused(false);
-        }}
+        onClick={() => { if (isPaused) setIsPaused(false); }}
       />
     </div>
   );

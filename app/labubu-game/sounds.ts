@@ -1,5 +1,18 @@
-// Minimal, mobile-friendly sound engine using WebAudio.
-// Unlocks on first user gesture (tap/click).
+// Mobile-friendly WebAudio with explicit types (no "any").
+// Audio starts only after first user gesture via unlock().
+
+type AudioContextConstructor = new (contextOptions?: AudioContextOptions) => AudioContext;
+
+declare global {
+  interface Window {
+    webkitAudioContext?: AudioContextConstructor;
+  }
+}
+
+function getAudioContextConstructor(): AudioContextConstructor | null {
+  if (typeof window === 'undefined') return null;
+  return window.AudioContext || window.webkitAudioContext || null;
+}
 
 export class GameSounds {
   private ctx: AudioContext | null = null;
@@ -11,15 +24,15 @@ export class GameSounds {
 
   init() {
     if (this.ctx) return;
-    const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!AC) return; // No WebAudio (very old browser)
+    const AC = getAudioContextConstructor();
+    if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.8;
     this.master.connect(this.ctx.destination);
   }
 
-  // Call this on the first user gesture (we do it in Start + on canvas touch)
+  // Call on first user gesture (we do this in startGame + touchstart)
   async unlock() {
     if (!this.ctx) this.init();
     if (!this.ctx) return;
@@ -37,9 +50,7 @@ export class GameSounds {
 
   toggleMute(): boolean {
     this.muted = !this.muted;
-    if (this.master) {
-      this.master.gain.value = this.muted ? 0 : 0.8;
-    }
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.8;
     return this.muted;
   }
 
@@ -75,7 +86,6 @@ export class GameSounds {
   }
 
   playCollectSound(golden = false) {
-    // Golden: brighter blips
     this.blip(golden ? 880 : 660, 0.08);
     setTimeout(() => this.blip(golden ? 1320 : 990, 0.08), 60);
   }
@@ -114,13 +124,16 @@ export class GameSounds {
     this.musicOsc.connect(this.musicGain);
     this.musicOsc.start();
 
-    // gentle pulse
+    // Gentle frequency pulse LFO
     const lfo = this.ctx.createOscillator();
     const lfoGain = this.ctx.createGain();
     lfo.frequency.value = 0.25;
     lfoGain.gain.value = 30;
     lfo.connect(lfoGain);
-    lfoGain.connect(this.musicOsc.frequency as any);
+
+    // Type-safe connection to AudioParam (no "any" cast)
+    lfoGain.connect(this.musicOsc.frequency);
+
     lfo.start();
   }
 }
