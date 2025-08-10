@@ -96,26 +96,16 @@ This section contains the contents of the repository's files.
   border-radius: 30px;
   text-align: center;
   max-width: 90%;
-  width: 400px;
+  width: 420px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: bounce-in 0.5s ease;
 }
 
 @keyframes bounce-in {
-  0% {
-    transform: scale(0.3);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  70% {
-    transform: scale(0.95);
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.05); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .game-title {
@@ -124,36 +114,65 @@ This section contains the contents of the repository's files.
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
   animation: rainbow 3s ease-in-out infinite;
 }
 
 @keyframes rainbow {
-  0%, 100% {
-    filter: hue-rotate(0deg);
-  }
-  50% {
-    filter: hue-rotate(180deg);
-  }
+  0%, 100% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(180deg); }
 }
 
 .game-description {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   color: #4A5568;
-  font-size: 1.1rem;
-  line-height: 1.8;
+  font-size: 1.05rem;
+  line-height: 1.75;
 }
 
-.game-description p {
-  margin: 0.5rem 0;
+.legend {
+  text-align: left;
+  margin: 1rem auto 0;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.65);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+.legend ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.legend li {
+  display: grid;
+  grid-template-columns: 1.75rem 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.98rem;
+}
+
+.legend .badge {
+  display: inline-block;
+  min-width: 2.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px dashed #FF69B4;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #B83280;
 }
 
 .game-over-stats {
   background: rgba(255, 255, 255, 0.5);
   padding: 1rem;
   border-radius: 15px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
 }
 
 .final-score {
@@ -191,9 +210,7 @@ This section contains the contents of the repository's files.
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
 }
 
-.play-button:active {
-  transform: translateY(-1px);
-}
+.play-button:active { transform: translateY(-1px); }
 
 .pause-content h2 {
   font-size: 2.5rem;
@@ -212,25 +229,18 @@ This section contains the contents of the repository's files.
     padding: 2rem;
     width: 95%;
   }
-  
-  .game-title {
-    font-size: 2rem;
-  }
-  
-  .game-description {
-    font-size: 1rem;
-  }
-  
-  .play-button {
-    padding: 0.8rem 2rem;
-    font-size: 1.2rem;
-  }
+  .game-title { font-size: 2rem; }
+  .game-description { font-size: 1rem; }
+  .play-button { padding: 0.8rem 2rem; font-size: 1.2rem; }
 }
 
+/* Moved away from the HUD; now in bottom-right */
 .mute-button {
   position: fixed;
-  top: 20px;
-  left: 20px;
+  bottom: 20px;
+  right: 20px;
+  left: auto;
+  top: auto;
   width: 50px;
   height: 50px;
   border-radius: 50%;
@@ -243,14 +253,8 @@ This section contains the contents of the repository's files.
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
-.mute-button:hover {
-  transform: scale(1.1);
-  background: #FFE5F1;
-}
-
-.mute-button:active {
-  transform: scale(0.95);
-}
+.mute-button:hover { transform: scale(1.1); background: #FFE5F1; }
+.mute-button:active { transform: scale(0.95); }
 </file>
 
 <file path="labubu-game/page.tsx">
@@ -259,31 +263,78 @@ This section contains the contents of the repository's files.
 import React, { useEffect, useRef, useState } from 'react';
 import './game.css';
 import { GameSounds } from './sounds';
-import type { GameState, Labubu, Rainbow, Heart, Unicorn } from './types';
+import type { GameState, Labubu, Rainbow, Heart, Unicorn, GameDifficulty } from './types';
+
+type ModeSettings = {
+  spawnBaseMs: number;
+  spawnFloorMs: number;
+  spawnSlopeMsPerPoint: number;
+  speedBase: number;
+  speedMaxAdd: number;
+  blackOverall: number;
+  eventTwoBlackProb?: number;
+  eventThreeBlackProb?: number;
+  easySingleBlackOnScreen?: boolean;
+};
+
+const MODE: Record<GameDifficulty, ModeSettings> = {
+  easy: {
+    spawnBaseMs: 1500,
+    spawnFloorMs: 900,
+    spawnSlopeMsPerPoint: 3,
+    speedBase: 3.2,
+    speedMaxAdd: 3.8,
+    blackOverall: 0.08,
+    easySingleBlackOnScreen: true,
+  },
+  medium: {
+    spawnBaseMs: 1400,
+    spawnFloorMs: 600,
+    spawnSlopeMsPerPoint: 4,
+    speedBase: 3.8,
+    speedMaxAdd: 4.2,
+    blackOverall: 0.10,
+    eventTwoBlackProb: 0.10,
+  },
+  hard: {
+    spawnBaseMs: 1300,
+    spawnFloorMs: 450,
+    spawnSlopeMsPerPoint: 4.25,
+    speedBase: 4.2,
+    speedMaxAdd: 5.0,
+    blackOverall: 0.15,
+    eventThreeBlackProb: 0.10,
+  },
+};
+
+// Good-labubu group probabilities shared across difficulties
+const TUNING_GROUPS = { p2Base: 0.10, p2Max: 0.30, p3Base: 0.02, p3Max: 0.12 };
 
 export default function LabubuGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
-  const [lives, setLives] = useState(3);
+  const [, setLives] = useState(3); // value unused; lives drawn on canvas
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [difficulty, setDifficulty] = useState<GameDifficulty>('easy');
+
+  // Refs used inside RAF loop
+  const scoreRef = useRef(0);
+  const livesRef = useRef(3);
+  const diffRef = useRef<GameDifficulty>('easy');
+  const highScoreRef = useRef(0);
+
   const animationRef = useRef<number | undefined>(undefined);
   const soundsRef = useRef<GameSounds | undefined>(undefined);
-  
+
   const gameStateRef = useRef<GameState>({
-    unicorn: { 
-      x: 0, 
-      y: 0, 
-      width: 90, 
-      height: 90,
-      targetX: 0,
-      bounce: 0,
-      wingFlap: 0,
-      catchAnimation: 0,
-      magnetPull: false,
-      magnetTimer: 0
+    unicorn: {
+      x: 0, y: 0, width: 90, height: 90,
+      targetX: 0, bounce: 0, wingFlap: 0, catchAnimation: 0,
+      magnetPull: false, magnetTimer: 0,
     },
     labubus: [],
     rainbows: [],
@@ -301,225 +352,294 @@ export default function LabubuGame() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('labubuHighScore');
-      if (saved) setHighScore(parseInt(saved));
+      if (saved) {
+        const hs = parseInt(saved, 10);
+        setHighScore(hs);
+        highScoreRef.current = hs;
+      }
       soundsRef.current = new GameSounds();
+      soundsRef.current.init();
     }
   }, []);
 
+  useEffect(() => { highScoreRef.current = highScore; }, [highScore]);
+  useEffect(() => { diffRef.current = difficulty; }, [difficulty]);
+
   useEffect(() => {
     if (!canvasRef.current || !gameStarted || isPaused) return;
-    
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    
-    const gameState = gameStateRef.current;
-    gameState.unicorn.x = canvas.width / 2 - 45;
-    gameState.unicorn.y = canvas.height - 140;
-    gameState.unicorn.targetX = canvas.width / 2 - 45;
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+
+    const gs = gameStateRef.current;
+    if (gs.frameCount === 0) {
+      gs.unicorn.x = canvas.width / 2 - gs.unicorn.width / 2;
+      gs.unicorn.y = canvas.height - 140;
+      gs.unicorn.targetX = gs.unicorn.x;
+    }
 
     let lastSpawn = 0;
     let rainbowSpawn = 0;
     let heartSpawn = 0;
 
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    const groupDifficulty = () => clamp01(scoreRef.current / 200);
+
+    const chooseGroupSize = () => {
+      const d = groupDifficulty();
+      const p2 = TUNING_GROUPS.p2Base + (TUNING_GROUPS.p2Max - TUNING_GROUPS.p2Base) * d;
+      const p3 = TUNING_GROUPS.p3Base + (TUNING_GROUPS.p3Max - TUNING_GROUPS.p3Base) * d;
+      const r = Math.random();
+      return r < p3 ? 3 : r < p3 + p2 ? 2 : 1;
+    };
+
+    const chooseBlackCountForEvent = (count: number): number => {
+      const mode = MODE[diffRef.current];
+      const blacksOnScreen = gameStateRef.current.labubus.filter((l) => l.type === 'black').length;
+
+      if (diffRef.current === 'easy') {
+        if (mode.easySingleBlackOnScreen && blacksOnScreen >= 1) return 0;
+        return Math.random() < mode.blackOverall ? 1 : 0;
+      }
+
+      if (diffRef.current === 'medium') {
+        if (count >= 2 && mode.eventTwoBlackProb && Math.random() < mode.eventTwoBlackProb) {
+          return 2;
+        }
+        return Math.random() < mode.blackOverall ? 1 : 0;
+      }
+
+      if (diffRef.current === 'hard') {
+        if (count >= 3 && mode.eventThreeBlackProb && Math.random() < mode.eventThreeBlackProb) {
+          return 3;
+        }
+        let cnt = 0;
+        for (let i = 0; i < count; i++) {
+          if (Math.random() < mode.blackOverall) cnt++;
+        }
+        return Math.min(cnt, 2);
+      }
+
+      return 0;
+    };
+
+    const spawnLabubuGroup = (count: number, timestamp: number) => {
+      const xs: number[] = [];
+      const minGap = 80;
+
+      for (let i = 0; i < count; i++) {
+        let x = Math.random() * (canvas.width - 60);
+        let tries = 0;
+        while (xs.some((xx) => Math.abs(xx - x) < minGap) && tries < 50) {
+          x = Math.random() * (canvas.width - 60);
+          tries++;
+        }
+        xs.push(x);
+      }
+
+      let blackToPlace = chooseBlackCountForEvent(count);
+      const blackIndices: number[] = [];
+      while (blackToPlace > 0) {
+        const idx = Math.floor(Math.random() * count);
+        if (!blackIndices.includes(idx)) {
+          blackIndices.push(idx);
+          blackToPlace--;
+        }
+      }
+
+      xs.forEach((x, i) => {
+        const isBlack = blackIndices.includes(i);
+        const type: Labubu['type'] = isBlack ? 'black' : Math.random() < 0.10 ? 'golden' : 'normal';
+
+        const mode = MODE[diffRef.current];
+        const speed = mode.speedBase + Math.min(scoreRef.current / 35, mode.speedMaxAdd);
+
+        gs.labubus.push({
+          x, y: -60, width: 60, height: 60,
+          speed, type, rotation: 0, wobble: Math.random() * Math.PI * 2, scale: 1,
+        });
+      });
+
+      lastSpawn = timestamp;
+    };
+
     const gameLoop = (timestamp: number) => {
       if (!ctx || !canvas) return;
-      
-      // Clear canvas
+
+      // Clear & background
       ctx.fillStyle = '#FFE5F1';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw clouds
       drawClouds(ctx, canvas);
-      
-      // Update frame count for animations
-      gameState.frameCount++;
-      gameState.unicorn.wingFlap = Math.sin(gameState.frameCount * 0.15) * 5;
-      gameState.unicorn.bounce = Math.sin(gameState.frameCount * 0.1) * 3;
-      
-      // Update unicorn position with magnet effect
-      if (gameState.unicorn.magnetPull && gameState.unicorn.magnetTimer > 0) {
-        gameState.unicorn.magnetTimer--;
-        const centerX = canvas.width / 2 - gameState.unicorn.width / 2;
-        gameState.unicorn.targetX += (centerX - gameState.unicorn.targetX) * 0.08;
-        
-        if (gameState.unicorn.magnetTimer <= 0) {
-          gameState.unicorn.magnetPull = false;
-        }
-      } else if (gameState.touchX !== null) {
-        gameState.unicorn.targetX = gameState.touchX - gameState.unicorn.width / 2;
-      } else if (gameState.moveDirection !== 0) {
-        gameState.unicorn.targetX += gameState.moveDirection * 10;
+
+      gs.frameCount++;
+      gs.unicorn.wingFlap = Math.sin(gs.frameCount * 0.15) * 5;
+      gs.unicorn.bounce = Math.sin(gs.frameCount * 0.1) * 3;
+
+      // Input
+      if (gs.touchX !== null) gs.unicorn.targetX = gs.touchX - gs.unicorn.width / 2;
+      else if (gs.moveDirection !== 0) gs.unicorn.targetX += gs.moveDirection * 10;
+
+      // Clamp + ease
+      gs.unicorn.targetX = Math.max(0, Math.min(canvas.width - gs.unicorn.width, gs.unicorn.targetX));
+      gs.unicorn.x += (gs.unicorn.targetX - gs.unicorn.x) * 0.25;
+      if (gs.unicorn.catchAnimation > 0) gs.unicorn.catchAnimation--;
+
+      // Spawn pacing by mode
+      const mode = MODE[diffRef.current];
+      const desired = Math.max(mode.spawnFloorMs, mode.spawnBaseMs - scoreRef.current * mode.spawnSlopeMsPerPoint);
+      if (timestamp - lastSpawn > desired) {
+        const n = chooseGroupSize();
+        spawnLabubuGroup(n, timestamp);
       }
-      
-      // Smooth movement with increased responsiveness for mobile
-      gameState.unicorn.targetX = Math.max(0, Math.min(canvas.width - gameState.unicorn.width, gameState.unicorn.targetX));
-      gameState.unicorn.x += (gameState.unicorn.targetX - gameState.unicorn.x) * 0.25;
-      
-      // Update catch animation
-      if (gameState.unicorn.catchAnimation > 0) {
-        gameState.unicorn.catchAnimation--;
-      }
-      
-      // Spawn Labubus
-      if (timestamp - lastSpawn > (1500 - Math.min(score * 5, 1000))) {
-        gameState.labubus.push({
-          x: Math.random() * (canvas.width - 60),
-          y: -60,
-          width: 60,
-          height: 60,
-          speed: 2 + Math.min(score / 50, 3),
-          type: Math.random() > 0.9 ? 'golden' : 'normal',
-          rotation: 0,
-          wobble: Math.random() * Math.PI * 2,
-          scale: 1,
-        });
-        lastSpawn = timestamp;
-      }
-      
-      // Spawn Rainbows (power-ups)
+
+      // Rainbows
       if (timestamp - rainbowSpawn > 15000) {
-        gameState.rainbows.push({
-          x: Math.random() * (canvas.width - 80),
-          y: -80,
-          width: 80,
-          height: 40,
-          speed: 3,
-        });
+        gs.rainbows.push({ x: Math.random() * (canvas.width - 80), y: -80, width: 80, height: 40, speed: 3 });
         rainbowSpawn = timestamp;
       }
-      
-      // Spawn Hearts (extra lives)
-      if (timestamp - heartSpawn > 30000 && lives < 3) {
-        gameState.hearts.push({
-          x: Math.random() * (canvas.width - 40),
-          y: -40,
-          width: 40,
-          height: 40,
-          speed: 2,
-        });
+
+      // Hearts
+      if (timestamp - heartSpawn > 30000 && livesRef.current < 5) {
+        gs.hearts.push({ x: Math.random() * (canvas.width - 40), y: -40, width: 40, height: 40, speed: 2 });
         heartSpawn = timestamp;
       }
-      
-      // Update and draw Labubus
-      gameState.labubus = gameState.labubus.filter(labubu => {
-        labubu.y += labubu.speed;
-        labubu.rotation += 0.05;
-        labubu.wobble += 0.1;
-        labubu.x += Math.sin(labubu.wobble) * 1.5;
-        
-        // Check collision with unicorn
-        if (checkCollision(gameState.unicorn, labubu)) {
-          const points = labubu.type === 'golden' ? 50 : 10;
-          setScore(prev => {
-            const newScore = prev + points * (gameState.powerUpActive ? 2 : 1);
-            if (newScore > highScore) {
-              setHighScore(newScore);
-              localStorage.setItem('labubuHighScore', newScore.toString());
+
+      // Labubus
+      gs.labubus = gs.labubus.filter((l) => {
+        l.y += l.speed;
+        l.rotation += 0.05;
+        l.wobble += 0.1;
+        l.x += Math.sin(l.wobble) * 1.5;
+
+        if (checkCollision(gs.unicorn, l)) {
+          if (l.type === 'black') {
+            gs.combo = 0;
+            soundsRef.current?.playMissSound();
+            setLives((prev) => {
+              const next = prev - 1;
+              livesRef.current = next;
+              if (next <= 0) {
+                soundsRef.current?.playGameOverSound();
+                endGame();
+              }
+              return next;
+            });
+            // particles
+            for (let i = 0; i < 12; i++) {
+              gs.particles.push({
+                x: l.x + l.width / 2, y: l.y + l.height / 2,
+                vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9,
+                life: 35, size: Math.random() * 3 + 2, color: '#222', type: Math.random() > 0.5 ? 'star' : 'circle',
+              });
             }
-            return newScore;
+            return false;
+          }
+
+          const base = l.type === 'golden' ? 50 : 10;
+          const gained = base * (gs.powerUpActive ? 2 : 1);
+
+          setScore((prev) => {
+            const next = prev + gained;
+            scoreRef.current = next;
+            if (next > highScoreRef.current) {
+              setHighScore(next);
+              highScoreRef.current = next;
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('labubuHighScore', next.toString());
+              }
+            }
+            return next;
           });
-          
-          soundsRef.current?.playCollectSound(labubu.type === 'golden');
-          gameState.combo++;
-          
-          // Trigger catch animation and magnet pull
-          gameState.unicorn.catchAnimation = 20;
-          gameState.unicorn.magnetPull = true;
-          gameState.unicorn.magnetTimer = 15;
-          
-          // Create sparkle particles
+
+          soundsRef.current?.playCollectSound(l.type === 'golden');
+          gs.combo++;
+          gs.unicorn.catchAnimation = 20;
+
           for (let i = 0; i < 15; i++) {
-            gameState.particles.push({
-              x: labubu.x + labubu.width / 2,
-              y: labubu.y + labubu.height / 2,
-              vx: (Math.random() - 0.5) * 10,
-              vy: (Math.random() - 0.5) * 10,
-              life: 40,
-              size: Math.random() * 4 + 2,
-              color: labubu.type === 'golden' ? '#FFD700' : '#FF69B4',
+            gs.particles.push({
+              x: l.x + l.width / 2, y: l.y + l.height / 2,
+              vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10,
+              life: 40, size: Math.random() * 4 + 2,
+              color: l.type === 'golden' ? '#FFD700' : '#FF69B4',
               type: Math.random() > 0.5 ? 'star' : 'circle',
             });
           }
-          
           return false;
         }
-        
-        // Check if missed
-        if (labubu.y > canvas.height) {
-          gameState.combo = 0;
-          soundsRef.current?.playMissSound();
-          setLives(prev => {
-            const newLives = prev - 1;
-            if (newLives <= 0) {
-              soundsRef.current?.playGameOverSound();
-              endGame();
-            }
-            return newLives;
+
+        if (l.y > canvas.height) {
+          if (l.type !== 'black') {
+            gs.combo = 0;
+            soundsRef.current?.playMissSound();
+            setLives((prev) => {
+              const next = prev - 1;
+              livesRef.current = next;
+              if (next <= 0) {
+                soundsRef.current?.playGameOverSound();
+                endGame();
+              }
+              return next;
+            });
+          }
+          return false;
+        }
+
+        drawLabubu(ctx, l);
+        return true;
+      });
+
+      // Rainbows
+      gs.rainbows = gs.rainbows.filter((r) => {
+        r.y += r.speed;
+        if (checkCollision(gs.unicorn, r)) {
+          soundsRef.current?.playPowerUpSound();
+          gs.powerUpActive = true;
+          gs.powerUpTimer = 300;
+          return false;
+        }
+        if (r.y > canvas.height) return false;
+        drawRainbow(ctx, r);
+        return true;
+      });
+
+      // Hearts
+      gs.hearts = gs.hearts.filter((h) => {
+        h.y += h.speed;
+        if (checkCollision(gs.unicorn, h)) {
+          soundsRef.current?.playHeartSound();
+          setLives((prev) => {
+            const next = Math.min(prev + 1, 5);
+            livesRef.current = next;
+            return next;
           });
           return false;
         }
-        
-        drawLabubu(ctx, labubu);
+        if (h.y > canvas.height) return false;
+        drawHeart(ctx, h);
         return true;
       });
-      
-      // Update and draw Rainbows
-      gameState.rainbows = gameState.rainbows.filter(rainbow => {
-        rainbow.y += rainbow.speed;
-        
-        if (checkCollision(gameState.unicorn, rainbow)) {
-          soundsRef.current?.playPowerUpSound();
-          gameState.powerUpActive = true;
-          gameState.powerUpTimer = 300; // 5 seconds at 60fps
-          return false;
-        }
-        
-        if (rainbow.y > canvas.height) return false;
-        
-        drawRainbow(ctx, rainbow);
-        return true;
-      });
-      
-      // Update and draw Hearts
-      gameState.hearts = gameState.hearts.filter(heart => {
-        heart.y += heart.speed;
-        
-        if (checkCollision(gameState.unicorn, heart)) {
-          soundsRef.current?.playHeartSound();
-          setLives(prev => Math.min(prev + 1, 5));
-          return false;
-        }
-        
-        if (heart.y > canvas.height) return false;
-        
-        drawHeart(ctx, heart);
-        return true;
-      });
-      
-      // Update particles
-      gameState.particles = gameState.particles.filter(particle => {
-        particle.x += particle.vx;
-        particle.y += particle.vy;
-        particle.vy += 0.3;
-        particle.life--;
-        
-        if (particle.life > 0) {
-          ctx.globalAlpha = particle.life / 40;
-          ctx.fillStyle = particle.color;
-          
-          if (particle.type === 'star') {
+
+      // Particles
+      gs.particles = gs.particles.filter((p) => {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.3; p.life--;
+        if (p.life > 0) {
+          ctx.globalAlpha = p.life / 40;
+          ctx.fillStyle = p.color;
+          if (p.type === 'star') {
             ctx.save();
-            ctx.translate(particle.x, particle.y);
-            ctx.rotate(particle.life * 0.1);
-            
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.life * 0.1);
             ctx.beginPath();
             for (let i = 0; i < 5; i++) {
               const angle = (i * Math.PI * 2) / 5 - Math.PI / 2;
-              const r = i % 2 === 0 ? particle.size : particle.size * 0.5;
+              const r = i % 2 === 0 ? p.size : p.size * 0.5;
               ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
             }
             ctx.closePath();
@@ -527,36 +647,28 @@ export default function LabubuGame() {
             ctx.restore();
           } else {
             ctx.beginPath();
-            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
             ctx.fill();
           }
-          
           ctx.globalAlpha = 1;
           return true;
         }
         return false;
       });
-      
-      // Update power-up timer
-      if (gameState.powerUpActive) {
-        gameState.powerUpTimer--;
-        if (gameState.powerUpTimer <= 0) {
-          gameState.powerUpActive = false;
-        }
+
+      // Power-up
+      if (gs.powerUpActive) {
+        gs.powerUpTimer--;
+        if (gs.powerUpTimer <= 0) gs.powerUpActive = false;
       }
-      
-      // Draw unicorn with rainbow trail if powered up
-      if (gameState.powerUpActive) {
-        drawRainbowTrail(ctx, gameState.unicorn);
-      }
-      drawUnicorn(ctx, gameState.unicorn);
-      
-      // Draw UI
+
+      if (gs.powerUpActive) drawRainbowTrail(ctx, gs.unicorn);
+      drawUnicorn(ctx, gs.unicorn);
       drawUI(ctx, canvas);
-      
+
       animationRef.current = requestAnimationFrame(gameLoop);
     };
-    
+
     const drawClouds = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.beginPath();
@@ -564,410 +676,151 @@ export default function LabubuGame() {
       ctx.arc(140, 100, 50, 0, Math.PI * 2);
       ctx.arc(180, 100, 40, 0, Math.PI * 2);
       ctx.fill();
-      
+
       ctx.beginPath();
       ctx.arc(canvas.width - 150, 150, 35, 0, Math.PI * 2);
       ctx.arc(canvas.width - 110, 150, 45, 0, Math.PI * 2);
       ctx.arc(canvas.width - 70, 150, 35, 0, Math.PI * 2);
       ctx.fill();
     };
-    
+
     const drawLabubu = (ctx: CanvasRenderingContext2D, labubu: Labubu) => {
       ctx.save();
       ctx.translate(labubu.x + labubu.width / 2, labubu.y + labubu.height / 2);
       ctx.rotate(labubu.rotation);
-      
       const scale = labubu.scale || 1;
       ctx.scale(scale, scale);
-      
-      // Shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-      ctx.beginPath();
-      ctx.ellipse(0, labubu.height / 2 - 5, labubu.width / 3, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Body with gradient
-      const gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
+
+      if (labubu.type === 'golden') { ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 25; }
+      else if (labubu.type === 'black') { ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 20; }
+      else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; }
+
+      let gradient: CanvasGradient;
       if (labubu.type === 'golden') {
-        gradient.addColorStop(0, '#FFEB3B');
-        gradient.addColorStop(0.5, '#FFD700');
-        gradient.addColorStop(1, '#FFA000');
+        gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
+        gradient.addColorStop(0, '#FFEB3B'); gradient.addColorStop(0.5, '#FFD700'); gradient.addColorStop(1, '#FFA000');
+      } else if (labubu.type === 'black') {
+        gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
+        gradient.addColorStop(0, '#3a3a3a'); gradient.addColorStop(0.6, '#1d1d1d'); gradient.addColorStop(1, '#0c0c0c');
       } else {
-        gradient.addColorStop(0, '#D4A574');
-        gradient.addColorStop(0.5, '#8B7355');
-        gradient.addColorStop(1, '#6B5D54');
+        gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
+        gradient.addColorStop(0, '#E7CBA6'); gradient.addColorStop(0.5, '#A6886B'); gradient.addColorStop(1, '#6B5D54');
       }
       ctx.fillStyle = gradient;
-      
-      // Fluffy body shape
+
       ctx.beginPath();
       ctx.ellipse(0, 0, labubu.width / 2 - 2, labubu.height / 2 - 2, 0, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Fluffy texture
-      ctx.strokeStyle = labubu.type === 'golden' ? '#FFE082' : '#A89585';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 8; i++) {
-        const angle = (i * Math.PI * 2) / 8;
-        ctx.beginPath();
-        ctx.arc(Math.cos(angle) * 18, Math.sin(angle) * 18, 8, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      
-      // Ears with inner detail
-      ctx.fillStyle = labubu.type === 'golden' ? '#FFD700' : '#8B7355';
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = labubu.type === 'golden' ? '#B8860B' : labubu.type === 'black' ? '#000' : '#4E4038';
+      ctx.stroke();
+
+      // Ears
+      ctx.fillStyle = labubu.type === 'golden' ? '#FFD700' : labubu.type === 'black' ? '#1a1a1a' : '#8B7355';
       ctx.beginPath();
       ctx.ellipse(-18, -22, 14, 18, -0.3, 0, Math.PI * 2);
       ctx.ellipse(18, -22, 14, 18, 0.3, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Inner ears
-      ctx.fillStyle = labubu.type === 'golden' ? '#FFE082' : '#D4A574';
-      ctx.beginPath();
-      ctx.ellipse(-16, -20, 8, 10, -0.3, 0, Math.PI * 2);
-      ctx.ellipse(16, -20, 8, 10, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Big cute eyes with sparkle
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.ellipse(-12, -5, 5, 6, 0, 0, Math.PI * 2);
-      ctx.ellipse(12, -5, 5, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Eye sparkles
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath();
-      ctx.arc(-10, -7, 2, 0, Math.PI * 2);
-      ctx.arc(14, -7, 2, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Cute nose
+
+      // Eyes
+      if (labubu.type === 'black') {
+        ctx.fillStyle = '#a60b0b';
+        ctx.beginPath();
+        ctx.ellipse(-12, -5, 5, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(12, -5, 5, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(-12, -5, 5, 6, 0, 0, Math.PI * 2);
+        ctx.ellipse(12, -5, 5, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        ctx.arc(-10, -7, 2, 0, Math.PI * 2);
+        ctx.arc(14, -7, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Mouth/teeth
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.ellipse(0, 2, 3, 2, 0, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Happy smile with teeth
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 6, 10, 0.1 * Math.PI, 0.9 * Math.PI);
+      if (labubu.type === 'black') ctx.arc(0, 7, 10, 0.9 * Math.PI, 0.1 * Math.PI, true);
+      else ctx.arc(0, 6, 10, 0.1 * Math.PI, 0.9 * Math.PI);
       ctx.stroke();
-      
-      // Signature teeth
       ctx.fillStyle = '#FFF';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      // Left tooth
       ctx.fillRect(-6, 6, 4, 5);
       ctx.strokeRect(-6, 6, 4, 5);
-      // Right tooth
       ctx.fillRect(2, 6, 4, 5);
       ctx.strokeRect(2, 6, 4, 5);
-      
-      // Blush marks
-      ctx.fillStyle = 'rgba(255, 192, 203, 0.6)';
-      ctx.beginPath();
-      ctx.arc(-20, 2, 5, 0, Math.PI * 2);
-      ctx.arc(20, 2, 5, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Star decoration for golden
-      if (labubu.type === 'golden') {
-        ctx.fillStyle = '#FFF';
-        ctx.save();
-        ctx.translate(0, -35);
-        ctx.rotate(gameStateRef.current.frameCount * 0.05);
-        ctx.beginPath();
-        for (let i = 0; i < 5; i++) {
-          const angle = (i * Math.PI * 2) / 5 - Math.PI / 2;
-          const r = i % 2 === 0 ? 8 : 4;
-          ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      }
-      
+
       ctx.restore();
     };
-    
+
     const drawUnicorn = (ctx: CanvasRenderingContext2D, unicorn: Unicorn) => {
       ctx.save();
-      
-      // Apply bounce animation
       const bounceY = unicorn.bounce || 0;
-      const catchScale = unicorn.catchAnimation > 0 ? 1.1 - (unicorn.catchAnimation * 0.005) : 1;
-      
+      const catchScale = unicorn.catchAnimation > 0 ? 1.1 - unicorn.catchAnimation * 0.005 : 1;
       ctx.translate(unicorn.x + 45, unicorn.y + 45 + bounceY);
       ctx.scale(catchScale, catchScale);
       ctx.translate(-45, -45);
-      
+
       // Shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
       ctx.beginPath();
       ctx.ellipse(45, 85, 35, 8, 0, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Wings (animated)
-      const wingFlap = unicorn.wingFlap || 0;
-      
-      // Left wing
-      ctx.save();
-      ctx.translate(20, 40);
-      ctx.rotate(-0.3 + Math.sin(wingFlap * 0.1) * 0.2);
-      
-      const wingGradientL = ctx.createLinearGradient(-20, 0, 0, 30);
-      wingGradientL.addColorStop(0, 'rgba(255, 182, 193, 0.9)');
-      wingGradientL.addColorStop(0.5, 'rgba(255, 192, 203, 0.7)');
-      wingGradientL.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
-      ctx.fillStyle = wingGradientL;
-      
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(-25, 10, -20, 30);
-      ctx.quadraticCurveTo(-15, 35, -5, 35);
-      ctx.quadraticCurveTo(-10, 20, 0, 0);
-      ctx.fill();
-      
-      // Wing details
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-5, 10);
-      ctx.quadraticCurveTo(-15, 15, -15, 25);
-      ctx.stroke();
-      
-      ctx.restore();
-      
-      // Right wing
-      ctx.save();
-      ctx.translate(70, 40);
-      ctx.rotate(0.3 - Math.sin(wingFlap * 0.1) * 0.2);
-      
-      const wingGradientR = ctx.createLinearGradient(20, 0, 0, 30);
-      wingGradientR.addColorStop(0, 'rgba(255, 182, 193, 0.9)');
-      wingGradientR.addColorStop(0.5, 'rgba(255, 192, 203, 0.7)');
-      wingGradientR.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
-      ctx.fillStyle = wingGradientR;
-      
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(25, 10, 20, 30);
-      ctx.quadraticCurveTo(15, 35, 5, 35);
-      ctx.quadraticCurveTo(10, 20, 0, 0);
-      ctx.fill();
-      
-      // Wing details
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.beginPath();
-      ctx.moveTo(5, 10);
-      ctx.quadraticCurveTo(15, 15, 15, 25);
-      ctx.stroke();
-      
-      ctx.restore();
-      
-      // Body with gradient
+
+      // Body
       const bodyGradient = ctx.createRadialGradient(45, 50, 10, 45, 50, 35);
       bodyGradient.addColorStop(0, '#FFFFFF');
       bodyGradient.addColorStop(0.7, '#FFF5F5');
       bodyGradient.addColorStop(1, '#FFE5F1');
       ctx.fillStyle = bodyGradient;
-      
       ctx.beginPath();
       ctx.ellipse(45, 50, 35, 32, 0, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Body highlight
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.beginPath();
-      ctx.ellipse(35, 40, 12, 15, -0.3, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Legs with hooves
-      const legPositions = [
-        { x: 25, move: Math.sin(gameStateRef.current.frameCount * 0.1) * 2 },
-        { x: 35, move: Math.sin(gameStateRef.current.frameCount * 0.1 + 1) * 2 },
-        { x: 50, move: Math.sin(gameStateRef.current.frameCount * 0.1 + 2) * 2 },
-        { x: 60, move: Math.sin(gameStateRef.current.frameCount * 0.1 + 3) * 2 }
-      ];
-      
-      legPositions.forEach(leg => {
-        // Leg
-        ctx.fillStyle = '#FFF5F5';
-        ctx.fillRect(leg.x, 70 + leg.move, 10, 18);
-        
-        // Hoof
-        ctx.fillStyle = '#D4A574';
-        ctx.beginPath();
-        ctx.ellipse(leg.x + 5, 88 + leg.move, 6, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
-      });
-      
-      // Neck
-      ctx.fillStyle = bodyGradient;
-      ctx.beginPath();
-      ctx.ellipse(45, 30, 18, 25, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
+
       // Head
       const headGradient = ctx.createRadialGradient(45, 20, 5, 45, 20, 25);
       headGradient.addColorStop(0, '#FFFFFF');
       headGradient.addColorStop(1, '#FFF5F5');
       ctx.fillStyle = headGradient;
-      
       ctx.beginPath();
       ctx.ellipse(45, 20, 25, 22, 0, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Muzzle
-      ctx.fillStyle = '#FFE5F1';
-      ctx.beginPath();
-      ctx.ellipse(48, 25, 12, 10, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Nostrils
-      ctx.fillStyle = '#FFB6C1';
-      ctx.beginPath();
-      ctx.ellipse(45, 27, 2, 3, 0, 0, Math.PI * 2);
-      ctx.ellipse(51, 27, 2, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Horn with spiral and sparkle
-      const hornGradient = ctx.createLinearGradient(45, -5, 45, 15);
-      hornGradient.addColorStop(0, '#FFE5B4');
-      hornGradient.addColorStop(0.3, '#FFD700');
-      hornGradient.addColorStop(0.6, '#FFA500');
-      hornGradient.addColorStop(1, '#FFD700');
-      
-      ctx.fillStyle = hornGradient;
-      ctx.beginPath();
-      ctx.moveTo(45, -5);
-      ctx.lineTo(40, 15);
-      ctx.lineTo(50, 15);
-      ctx.closePath();
-      ctx.fill();
-      
-      // Horn spiral
-      ctx.strokeStyle = '#FFF';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(43, 12);
-      ctx.quadraticCurveTo(45, 5, 47, 0);
-      ctx.quadraticCurveTo(45, -3, 45, -5);
-      ctx.stroke();
-      
-      // Horn sparkle
-      ctx.fillStyle = '#FFF';
-      ctx.save();
-      ctx.translate(45, -8);
-      ctx.rotate(gameStateRef.current.frameCount * 0.05);
-      ctx.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const angle = (i * Math.PI) / 2;
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(angle) * 6, Math.sin(angle) * 6);
-      }
-      ctx.stroke();
-      ctx.restore();
-      
-      // Mane with flowing animation
-      const maneColors = ['#FF69B4', '#FFB6C1', '#DDA0DD', '#BA55D3', '#9370DB'];
-      const maneFlow = Math.sin(gameStateRef.current.frameCount * 0.05) * 2;
-      
-      for (let i = 0; i < 5; i++) {
-        const gradient = ctx.createRadialGradient(
-          25 + i * 4, 
-          10 + i * 3 + maneFlow, 
-          0,
-          25 + i * 4, 
-          10 + i * 3 + maneFlow, 
-          15
-        );
-        gradient.addColorStop(0, maneColors[i]);
-        gradient.addColorStop(1, maneColors[(i + 1) % maneColors.length]);
-        ctx.fillStyle = gradient;
-        
-        ctx.beginPath();
-        ctx.ellipse(
-          25 + i * 4, 
-          10 + i * 3 + maneFlow + Math.sin(gameStateRef.current.frameCount * 0.1 + i) * 2, 
-          10 - i * 0.5, 
-          15 - i, 
-          0.3 + Math.sin(gameStateRef.current.frameCount * 0.05 + i) * 0.1, 
-          0, 
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
-      
-      // Tail
-      for (let i = 0; i < 4; i++) {
-        ctx.fillStyle = maneColors[i];
-        ctx.beginPath();
-        ctx.ellipse(
-          15 + i * 3, 
-          45 + i * 4 + Math.sin(gameStateRef.current.frameCount * 0.1 + i) * 3, 
-          8, 
-          20, 
-          -0.5 + Math.sin(gameStateRef.current.frameCount * 0.05 + i) * 0.2, 
-          0, 
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
-      
-      // Eye with lashes
+
+      // Eye
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.ellipse(55, 18, 5, 6, 0, 0, Math.PI * 2);
       ctx.fill();
-      
-      // Eye sparkle
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath();
-      ctx.arc(56, 16, 2, 0, Math.PI * 2);
-      ctx.arc(54, 19, 1, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Eyelashes
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.moveTo(58 + i * 2, 14 + i);
-        ctx.lineTo(60 + i * 2, 12 + i);
-        ctx.stroke();
-      }
-      
-      // Blush
-      ctx.fillStyle = 'rgba(255, 192, 203, 0.4)';
-      ctx.beginPath();
-      ctx.arc(65, 25, 6, 0, Math.PI * 2);
-      ctx.fill();
-      
+
       ctx.restore();
     };
-    
-    const drawRainbow = (ctx: CanvasRenderingContext2D, rainbow: Rainbow) => {
+
+    const drawRainbow = (ctx: CanvasRenderingContext2D, r: Rainbow) => {
       const colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
-      const stripeHeight = rainbow.height / colors.length;
-      
-      colors.forEach((color, i) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(rainbow.x, rainbow.y + i * stripeHeight, rainbow.width, stripeHeight);
+      const stripe = r.height / colors.length;
+      colors.forEach((c, i) => {
+        ctx.fillStyle = c;
+        ctx.fillRect(r.x, r.y + i * stripe, r.width, stripe);
       });
     };
-    
-    const drawRainbowTrail = (ctx: CanvasRenderingContext2D, unicorn: Unicorn) => {
+
+    const drawRainbowTrail = (ctx: CanvasRenderingContext2D, u: Unicorn) => {
       const colors = ['#FF000030', '#FF7F0030', '#FFFF0030', '#00FF0030', '#0000FF30', '#4B008230', '#9400D330'];
-      colors.forEach((color, i) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(unicorn.x - i * 5, unicorn.y + 70 + i * 2, unicorn.width + i * 10, 5);
+      colors.forEach((c, i) => {
+        ctx.fillStyle = c;
+        ctx.fillRect(u.x - i * 5, u.y + 70 + i * 2, u.width + i * 10, 5);
       });
     };
-    
+
     const drawHeart = (ctx: CanvasRenderingContext2D, heart: Heart) => {
       ctx.fillStyle = '#FF1493';
       ctx.beginPath();
@@ -978,122 +831,126 @@ export default function LabubuGame() {
       ctx.bezierCurveTo(heart.x + 40, heart.y, heart.x + 20, heart.y, heart.x + 20, heart.y + 10);
       ctx.fill();
     };
-    
+
     const drawUI = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-      // Score
-      ctx.fillStyle = '#FF69B4';
-      ctx.font = 'bold 24px Comic Sans MS, cursive';
-      ctx.fillText(`Score: ${score}`, 20, 40);
-      
-      // High Score
-      ctx.fillStyle = '#FFD700';
-      ctx.fillText(`Best: ${highScore}`, 20, 70);
-      
-      // Lives
-      for (let i = 0; i < lives; i++) {
+      const chip = (x: number, y: number, text: string, color: string) => {
+        ctx.font = 'bold 24px "Bubblegum Sans", cursive';
+        const padX = 12, padY = 8;
+        const w = ctx.measureText(text).width + padX * 2;
+        const h = 34 + padY * 0.5;
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        roundRect(ctx, x, y - 26, w, h, 12);
+        ctx.fill();
+        ctx.fillStyle = color;
+        ctx.fillText(text, x + padX, y);
+      };
+
+      chip(20, 40, `Score: ${scoreRef.current}`, '#B83280');
+      chip(20, 80, `Best: ${highScoreRef.current}`, '#C27803');
+      chip(20, 120, `Mode: ${diffRef.current.toUpperCase()}`, '#3f6');
+
+      for (let i = 0; i < livesRef.current; i++) {
         drawHeart(ctx, { x: canvas.width - 60 - i * 50, y: 20, width: 40, height: 40, speed: 0 });
       }
-      
-      // Combo
+
       if (gameStateRef.current.combo > 1) {
         ctx.fillStyle = '#FF1493';
-        ctx.font = 'bold 32px Comic Sans MS, cursive';
+        ctx.font = 'bold 32px "Bubblegum Sans", cursive';
         ctx.fillText(`${gameStateRef.current.combo}x Combo!`, canvas.width / 2 - 80, 100);
       }
-      
-      // Power-up indicator
+
       if (gameStateRef.current.powerUpActive) {
         ctx.fillStyle = '#FFD700';
-        ctx.font = 'bold 28px Comic Sans MS, cursive';
-        ctx.fillText('RAINBOW POWER!', canvas.width / 2 - 100, 150);
+        ctx.font = 'bold 28px "Bubblegum Sans", cursive';
+        ctx.fillText('RAINBOW POWER!', canvas.width / 2 - 120, 150);
       }
     };
-    
-    const checkCollision = (rect1: { x: number; y: number; width: number; height: number }, rect2: { x: number; y: number; width: number; height: number }) => {
-      return rect1.x < rect2.x + rect2.width &&
-             rect1.x + rect1.width > rect2.x &&
-             rect1.y < rect2.y + rect2.height &&
-             rect1.y + rect1.height > rect2.y;
+
+    const roundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
     };
-    
+
+    const checkCollision = (
+      a: { x: number; y: number; width: number; height: number },
+      b: { x: number; y: number; width: number; height: number }
+    ) =>
+      a.x < b.x + b.width &&
+      a.x + a.width > b.x &&
+      a.y < b.y + b.height &&
+      a.y + a.height > b.y;
+
     const endGame = () => {
       setGameStarted(false);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-    
-    // Touch controls
+
+    // Input
     const handleTouch = (e: TouchEvent) => {
       e.preventDefault();
+      soundsRef.current?.unlock(); // mobile audio unlock
       if (e.touches.length > 0) {
-        gameState.touchX = e.touches[0].clientX;
+        gs.touchX = e.touches[0].clientX;
       }
     };
-    
-    const handleTouchEnd = () => {
-      gameState.touchX = null;
-    };
-    
-    // Keyboard controls
+    const handleTouchEnd = () => { gs.touchX = null; };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') gameState.moveDirection = -1;
-      if (e.key === 'ArrowRight') gameState.moveDirection = 1;
-      if (e.key === ' ') {
-        e.preventDefault();
-        setIsPaused(prev => !prev);
-      }
+      if (e.key === 'ArrowLeft') gs.moveDirection = -1;
+      if (e.key === 'ArrowRight') gs.moveDirection = 1;
+      if (e.key === ' ') { e.preventDefault(); setIsPaused((p) => !p); }
     };
-    
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        gameState.moveDirection = 0;
-      }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') gs.moveDirection = 0;
     };
-    
+
     canvas.addEventListener('touchstart', handleTouch, { passive: false });
     canvas.addEventListener('touchmove', handleTouch, { passive: false });
     canvas.addEventListener('touchend', handleTouchEnd);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    
+    window.addEventListener('resize', resize);
+
     animationRef.current = requestAnimationFrame(gameLoop);
-    
+
     return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
       canvas.removeEventListener('touchstart', handleTouch);
       canvas.removeEventListener('touchmove', handleTouch);
       canvas.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('resize', resize);
     };
-  }, [gameStarted, isPaused, score, highScore, lives]);
+  }, [gameStarted, isPaused]); // no 'highScore' captured here; use ref instead
 
-  const startGame = () => {
-    setScore(0);
-    setLives(3);
+  const startGame = async () => {
+    setScore(0); scoreRef.current = 0;
+    setLives(3); livesRef.current = 3;
+
+    diffRef.current = difficulty;
+
     setGameStarted(true);
     setIsPaused(false);
-    soundsRef.current?.init();
+
+    await soundsRef.current?.unlock();
     soundsRef.current?.playBackgroundMusic();
-    
-    const canvas = canvasRef.current;
-    const centerX = canvas ? canvas.width / 2 - 45 : window.innerWidth / 2 - 45;
-    
+
+    const width = canvasRef.current?.width ?? window.innerWidth;
+    const height = canvasRef.current?.height ?? window.innerHeight;
+    const centerX = width / 2 - 45;
+
     gameStateRef.current = {
-      unicorn: { 
-        x: centerX, 
-        y: 0, 
-        width: 90, 
-        height: 90,
-        targetX: centerX,
-        bounce: 0,
-        wingFlap: 0,
-        catchAnimation: 0,
-        magnetPull: false,
-        magnetTimer: 0
+      unicorn: {
+        x: centerX, y: height - 140, width: 90, height: 90,
+        targetX: centerX, bounce: 0, wingFlap: 0, catchAnimation: 0,
+        magnetPull: false, magnetTimer: 0,
       },
       labubus: [],
       rainbows: [],
@@ -1108,11 +965,13 @@ export default function LabubuGame() {
       frameCount: 0,
     };
   };
-  
+
   const toggleMute = () => {
     const muted = soundsRef.current?.toggleMute();
     setIsMuted(muted || false);
   };
+  const togglePause = () => setIsPaused((p) => !p);
+  const onDiffClick = (d: GameDifficulty) => setDifficulty(d);
 
   return (
     <div className="game-container">
@@ -1120,49 +979,71 @@ export default function LabubuGame() {
         <div className="menu-overlay">
           <div className="menu-content">
             <h1 className="game-title">🦄 Labubu Rainbow Catch! 🌈</h1>
+
             <div className="game-description">
-              <p>Help the unicorn catch falling Labubus!</p>
-              <p>🎮 Touch or use arrow keys to move</p>
-              <p>✨ Golden Labubus = 50 points!</p>
-              <p>🌈 Rainbows = Double points!</p>
-              <p>💖 Hearts = Extra lives!</p>
-            </div>
-            {score > 0 && (
-              <div className="game-over-stats">
-                <p className="final-score">Final Score: {score}</p>
-                <p className="high-score">Best Score: {highScore}</p>
+              <p>Catch falling Labubus. Avoid the black ones!</p>
+              <p>🎮 Touch / Arrow keys to move • ⏸️ Space or Pause to pause</p>
+
+              <div className="difficulty">
+                <button className={`diff-btn ${difficulty === 'easy' ? 'active' : ''}`} onClick={() => onDiffClick('easy')}>Easy</button>
+                <button className={`diff-btn ${difficulty === 'medium' ? 'active' : ''}`} onClick={() => onDiffClick('medium')}>Medium</button>
+                <button className={`diff-btn ${difficulty === 'hard' ? 'active' : ''}`} onClick={() => onDiffClick('hard')}>Hard</button>
               </div>
-            )}
-            <button className="play-button" onClick={startGame}>
-              {score > 0 ? 'Play Again! 🎮' : 'Start Game! 🎮'}
-            </button>
+
+              <div className="legend">
+                <ul>
+                  <li><span>🥨</span> <span>Regular Labubu: <span className="badge">+10</span> points</span></li>
+                  <li><span>⭐</span> <span>Golden Labubu: <span className="badge">+50</span> points</span></li>
+                  <li><span>🌈</span> <span>Rainbow: <strong>2× points</strong> for <strong>5s</strong></span></li>
+                  <li><span>💖</span> <span>Heart: <strong>+1 life</strong> (max <strong>5</strong>)</span></li>
+                  <li><span>⚫</span> <span><strong>Black Labubu:</strong> <span className="badge">-1 life</span> & combo reset</span></li>
+                </ul>
+                <p style={{ marginTop: 8 }}>
+                  <strong>Mode rules:</strong><br />
+                  Easy: at most 1 black on screen & per spawn.<br />
+                  Medium: 10% overall black; ≤10% events with 2 blacks.<br />
+                  Hard: 15% overall black; ≤10% events with 3 blacks.
+                </p>
+              </div>
+
+              {score > 0 && (
+                <div className="game-over-stats">
+                  <p className="final-score">Final Score: {score}</p>
+                  <p className="high-score">Best Score: {highScore}</p>
+                </div>
+              )}
+              <button className="play-button" onClick={startGame}>
+                {score > 0 ? 'Play Again! 🎮' : 'Start Game! 🎮'}
+              </button>
+            </div>
           </div>
         </div>
       )}
-      
+
       {gameStarted && (
-        <button 
-          className="mute-button" 
-          onClick={toggleMute}
-          aria-label={isMuted ? "Unmute" : "Mute"}
-        >
-          {isMuted ? '🔇' : '🔊'}
-        </button>
+        <div className="controls">
+          <button className="pause-button" onClick={togglePause} aria-label={isPaused ? 'Resume' : 'Pause'} title={isPaused ? 'Resume' : 'Pause'}>
+            {isPaused ? '▶️' : '⏸️'}
+          </button>
+          <button className="mute-button" onClick={toggleMute} aria-label={isMuted ? 'Unmute' : 'Mute'} title={isMuted ? 'Unmute' : 'Mute'}>
+            {isMuted ? '🔇' : '🔊'}
+          </button>
+        </div>
       )}
-      
+
       {isPaused && gameStarted && (
         <div className="pause-overlay">
           <div className="pause-content">
             <h2>Game Paused</h2>
-            <p>Press SPACE or tap to continue</p>
+            <p>Press SPACE, Pause, or tap to continue</p>
           </div>
         </div>
       )}
-      
-      <canvas 
+
+      <canvas
         ref={canvasRef}
         className="game-canvas"
-        onClick={() => isPaused && setIsPaused(false)}
+        onClick={() => { if (isPaused) setIsPaused(false); }}
       />
     </div>
   );
@@ -1170,142 +1051,150 @@ export default function LabubuGame() {
 </file>
 
 <file path="labubu-game/sounds.ts">
+// Mobile-friendly WebAudio with explicit types (no "any").
+// Audio starts only after first user gesture via unlock().
+
+type AudioContextConstructor = new (contextOptions?: AudioContextOptions) => AudioContext;
+
+declare global {
+  interface Window {
+    webkitAudioContext?: AudioContextConstructor;
+  }
+}
+
+function getAudioContextConstructor(): AudioContextConstructor | null {
+  if (typeof window === 'undefined') return null;
+  return window.AudioContext || window.webkitAudioContext || null;
+}
+
 export class GameSounds {
-  private audioContext: AudioContext | null = null;
-  private isMuted: boolean = false;
-  
-  constructor() {
-    if (typeof window !== 'undefined') {
-      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (AudioContextClass) {
-        this.audioContext = new AudioContextClass();
-      }
-    }
-  }
-  
-  private createOscillator(frequency: number, duration: number, type: OscillatorType = 'sine') {
-    if (!this.audioContext || this.isMuted) return;
-    
-    const oscillator = this.audioContext.createOscillator();
-    const gainNode = this.audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
-    
-    oscillator.frequency.value = frequency;
-    oscillator.type = type;
-    
-    gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
-    
-    oscillator.start(this.audioContext.currentTime);
-    oscillator.stop(this.audioContext.currentTime + duration);
-  }
-  
-  playCollectSound(isGolden: boolean = false) {
-    if (isGolden) {
-      this.createOscillator(523.25, 0.1); // C5
-      setTimeout(() => this.createOscillator(659.25, 0.1), 50); // E5
-      setTimeout(() => this.createOscillator(783.99, 0.15), 100); // G5
-    } else {
-      this.createOscillator(440, 0.1); // A4
-      setTimeout(() => this.createOscillator(554.37, 0.1), 50); // C#5
-    }
-  }
-  
-  playPowerUpSound() {
-    const notes = [261.63, 329.63, 392, 523.25]; // C4, E4, G4, C5
-    notes.forEach((note, index) => {
-      setTimeout(() => this.createOscillator(note, 0.2, 'square'), index * 100);
-    });
-  }
-  
-  playHeartSound() {
-    this.createOscillator(440, 0.15, 'triangle'); // A4
-    setTimeout(() => this.createOscillator(554.37, 0.15, 'triangle'), 100); // C#5
-    setTimeout(() => this.createOscillator(659.25, 0.2, 'triangle'), 200); // E5
-  }
-  
-  playMissSound() {
-    this.createOscillator(130.81, 0.3, 'sawtooth'); // C3
-  }
-  
-  playGameOverSound() {
-    const notes = [392, 349.23, 329.63, 293.66]; // G4, F4, E4, D4
-    notes.forEach((note, index) => {
-      setTimeout(() => this.createOscillator(note, 0.3, 'square'), index * 200);
-    });
-  }
-  
-  playBackgroundMusic() {
-    if (!this.audioContext || this.isMuted) return;
-    
-    const playNote = (frequency: number, startTime: number, duration: number) => {
-      const oscillator = this.audioContext!.createOscillator();
-      const gainNode = this.audioContext!.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(this.audioContext!.destination);
-      
-      oscillator.frequency.value = frequency;
-      oscillator.type = 'triangle';
-      
-      gainNode.gain.setValueAtTime(0, startTime);
-      gainNode.gain.linearRampToValueAtTime(0.1, startTime + 0.01);
-      gainNode.gain.setValueAtTime(0.1, startTime + duration - 0.01);
-      gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
-      
-      oscillator.start(startTime);
-      oscillator.stop(startTime + duration);
-    };
-    
-    const melody = [
-      { note: 523.25, time: 0, duration: 0.25 },     // C5
-      { note: 523.25, time: 0.25, duration: 0.25 },  // C5
-      { note: 783.99, time: 0.5, duration: 0.25 },   // G5
-      { note: 783.99, time: 0.75, duration: 0.25 },  // G5
-      { note: 880, time: 1, duration: 0.25 },        // A5
-      { note: 880, time: 1.25, duration: 0.25 },     // A5
-      { note: 783.99, time: 1.5, duration: 0.5 },    // G5
-      { note: 698.46, time: 2, duration: 0.25 },     // F5
-      { note: 698.46, time: 2.25, duration: 0.25 },  // F5
-      { note: 659.25, time: 2.5, duration: 0.25 },   // E5
-      { note: 659.25, time: 2.75, duration: 0.25 },  // E5
-      { note: 587.33, time: 3, duration: 0.25 },     // D5
-      { note: 587.33, time: 3.25, duration: 0.25 },  // D5
-      { note: 523.25, time: 3.5, duration: 0.5 },    // C5
-    ];
-    
-    const startTime = this.audioContext.currentTime;
-    const loopDuration = 4;
-    
-    const scheduleLoop = () => {
-      melody.forEach(({ note, time, duration }) => {
-        playNote(note, startTime + time, duration);
-      });
-      
-      if (!this.isMuted) {
-        setTimeout(() => scheduleLoop(), loopDuration * 1000);
-      }
-    };
-    
-    scheduleLoop();
-  }
-  
-  toggleMute() {
-    this.isMuted = !this.isMuted;
-    return this.isMuted;
-  }
-  
+  private ctx: AudioContext | null = null;
+  private master: GainNode | null = null;
+  private musicOsc: OscillatorNode | null = null;
+  private musicGain: GainNode | null = null;
+  private muted = false;
+  private unlocked = false;
+
   init() {
-    if (this.audioContext?.state === 'suspended') {
-      this.audioContext.resume();
+    if (this.ctx) return;
+    const AC = getAudioContextConstructor();
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.8;
+    this.master.connect(this.ctx.destination);
+  }
+
+  // Call on first user gesture (we do this in startGame + touchstart)
+  async unlock() {
+    if (!this.ctx) this.init();
+    if (!this.ctx) return;
+    if (this.unlocked) return;
+
+    try {
+      if (this.ctx.state !== 'running') {
+        await this.ctx.resume();
+      }
+      this.unlocked = true;
+    } catch {
+      // ignore
     }
+  }
+
+  toggleMute(): boolean {
+    this.muted = !this.muted;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.8;
+    return this.muted;
+  }
+
+  // ---- SFX helpers ----
+  private blip(freq: number, time = 0.12) {
+    if (!this.ctx || !this.master) return;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    g.gain.value = 0.0001;
+    g.gain.exponentialRampToValueAtTime(0.4, this.ctx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + time);
+    o.connect(g);
+    g.connect(this.master);
+    o.start();
+    o.stop(this.ctx.currentTime + time + 0.02);
+  }
+
+  private noiseHit(time = 0.2) {
+    if (!this.ctx || !this.master) return;
+    const bufferSize = 2 * this.ctx.sampleRate * time;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const g = this.ctx.createGain();
+    g.gain.value = 0.5;
+    src.connect(g);
+    g.connect(this.master);
+    src.start();
+  }
+
+  playCollectSound(golden = false) {
+    this.blip(golden ? 880 : 660, 0.08);
+    setTimeout(() => this.blip(golden ? 1320 : 990, 0.08), 60);
+  }
+
+  playMissSound() {
+    this.noiseHit(0.15);
+    setTimeout(() => this.blip(220, 0.1), 10);
+  }
+
+  playHeartSound() {
+    this.blip(523.25, 0.08);
+    setTimeout(() => this.blip(659.25, 0.08), 70);
+  }
+
+  playPowerUpSound() {
+    this.blip(784, 0.1);
+    setTimeout(() => this.blip(988, 0.1), 80);
+  }
+
+  playGameOverSound() {
+    this.blip(196, 0.18);
+    setTimeout(() => this.blip(147, 0.18), 120);
+  }
+
+  playBackgroundMusic() {
+    if (!this.ctx || !this.master) return;
+    if (this.musicOsc) return; // already playing
+
+    this.musicGain = this.ctx.createGain();
+    this.musicGain.gain.value = 0.05; // subtle
+    this.musicGain.connect(this.master);
+
+    this.musicOsc = this.ctx.createOscillator();
+    this.musicOsc.type = 'triangle';
+    this.musicOsc.frequency.value = 220;
+    this.musicOsc.connect(this.musicGain);
+    this.musicOsc.start();
+
+    // Gentle frequency pulse LFO
+    const lfo = this.ctx.createOscillator();
+    const lfoGain = this.ctx.createGain();
+    lfo.frequency.value = 0.25;
+    lfoGain.gain.value = 30;
+    lfo.connect(lfoGain);
+
+    // Type-safe connection to AudioParam (no "any" cast)
+    lfoGain.connect(this.musicOsc.frequency);
+
+    lfo.start();
   }
 }
 </file>
 
 <file path="labubu-game/types.ts">
+export type GameDifficulty = 'easy' | 'medium' | 'hard';
+
 export interface Unicorn {
   x: number;
   y: number;
@@ -1325,7 +1214,7 @@ export interface Labubu {
   width: number;
   height: number;
   speed: number;
-  type: 'normal' | 'golden';
+  type: 'normal' | 'golden' | 'black';
   rotation: number;
   wobble: number;
   scale: number;
@@ -1419,8 +1308,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Create Next App",
-  description: "Generated by create next app",
+  title: "Labubu Rainbow Catch",
+  description: "Catch Labubus, collect rainbows, and rack up points!",
 };
 
 export default function RootLayout({
@@ -1430,9 +1319,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
       </body>
     </html>

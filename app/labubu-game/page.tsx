@@ -95,7 +95,7 @@ export default function LabubuGame() {
 
     const pickLabubuType = (): Labubu['type'] => {
       const d = difficulty();
-      const blackChance = 0.07 + 0.18 * d; // 7% → 25%
+      const blackChance = 0.05 + 0.10 * d; // 5% → 15%
       const goldenChance = 0.10;          // ~10% flat
       const r = Math.random();
       if (r < blackChance) return 'black';
