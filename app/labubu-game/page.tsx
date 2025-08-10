@@ -184,7 +184,7 @@ export default function LabubuGame() {
       }
 
       // Hearts
-      if (timestamp - heartSpawn > 30000 && livesRef.current < 5) {
+      if (timestamp - heartSpawn > 12000 && livesRef.current < 5) {
         gameState.hearts.push({
           x: Math.random() * (canvas.width - 40),
           y: -40,
