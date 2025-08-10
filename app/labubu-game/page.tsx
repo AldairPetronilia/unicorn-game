@@ -256,6 +256,9 @@ export default function LabubuGame() {
       }
 
       // LABUBU UPDATE/DRAW
+      let pinkAbilityTriggered = false;
+      let blackLabubusRemoved = 0;
+      
       gameState.labubus = gameState.labubus.filter((labubu) => {
         labubu.y += labubu.speed;
         labubu.rotation += 0.05;
@@ -310,23 +313,9 @@ export default function LabubuGame() {
               return next;
             });
 
-            // Special ability: remove all black labubus
-            const blackLabubusRemoved = gameState.labubus.filter(l => l.type === 'black').length;
-            gameState.labubus = gameState.labubus.filter(l => l.type !== 'black');
-
-            // Create extra particles for removed black labubus
-            for (let i = 0; i < blackLabubusRemoved * 8; i++) {
-              gameState.particles.push({
-                x: labubu.x + labubu.width / 2 + (Math.random() - 0.5) * 200,
-                y: labubu.y + labubu.height / 2 + (Math.random() - 0.5) * 200,
-                vx: (Math.random() - 0.5) * 15,
-                vy: (Math.random() - 0.5) * 15,
-                life: 50,
-                size: Math.random() * 5 + 3,
-                color: '#FF1493',
-                type: Math.random() > 0.5 ? 'star' : 'circle',
-              });
-            }
+            // Mark pink ability as triggered and count black labubus for removal
+            pinkAbilityTriggered = true;
+            blackLabubusRemoved = gameState.labubus.filter(l => l.type === 'black').length;
 
             // Pink sparkles around collected pink labubu
             for (let i = 0; i < 20; i++) {
@@ -405,6 +394,26 @@ export default function LabubuGame() {
         drawLabubu(ctx, labubu);
         return true;
       });
+
+      // Handle pink labubu special ability after main loop
+      if (pinkAbilityTriggered) {
+        // Remove all black labubus
+        gameState.labubus = gameState.labubus.filter(l => l.type !== 'black');
+        
+        // Create extra particles for removed black labubus
+        for (let i = 0; i < blackLabubusRemoved * 8; i++) {
+          gameState.particles.push({
+            x: gameState.unicorn.x + gameState.unicorn.width / 2 + (Math.random() - 0.5) * 200,
+            y: gameState.unicorn.y + gameState.unicorn.height / 2 + (Math.random() - 0.5) * 200,
+            vx: (Math.random() - 0.5) * 15,
+            vy: (Math.random() - 0.5) * 15,
+            life: 50,
+            size: Math.random() * 5 + 3,
+            color: '#FF1493',
+            type: Math.random() > 0.5 ? 'star' : 'circle',
+          });
+        }
+      }
 
       // RAINBOWS
       gameState.rainbows = gameState.rainbows.filter((rainbow) => {
