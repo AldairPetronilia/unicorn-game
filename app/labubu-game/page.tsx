@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './game.css';
 import { GameSounds } from './sounds';
-import type { GameState, Labubu, Rainbow, Heart, Unicorn } from './types';
+import type { GameState, Labubu, Rainbow, Heart, Unicorn, Difficulty } from './types';
+import DifficultySelector from './DifficultySelector';
 
 export default function LabubuGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -14,6 +15,7 @@ export default function LabubuGame() {
   const [lives, setLives] = useState(3);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
 
   // Refs for loop access
   const scoreRef = useRef(0);
@@ -62,12 +64,18 @@ export default function LabubuGame() {
     powerUpActive: false,
     powerUpTimer: 0,
     frameCount: 0,
+    difficulty: 'medium',
   });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('labubuHighScore');
       if (saved) setHighScore(parseInt(saved, 10));
+      
+      const savedDifficulty = localStorage.getItem('labubuDifficulty') as Difficulty;
+      if (savedDifficulty && ['easy', 'medium', 'hard'].includes(savedDifficulty)) {
+        setDifficulty(savedDifficulty);
+      }
       soundsRef.current = new GameSounds();
       
       // Preload images
@@ -133,7 +141,57 @@ export default function LabubuGame() {
 
     // ---- helpers for difficulty & spawning ----
     const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-    const difficulty = () => clamp01(scoreRef.current / 200); // ramps 0→1 by ~200 pts
+    
+    // Get difficulty settings based on selected difficulty and score progression
+    const getDifficultySettings = () => {
+      const scoreDifficulty = clamp01(scoreRef.current / 200); // 0→1 progression with score
+      const baseDifficulty = gameState.difficulty;
+      
+      let difficultyMultiplier = 1;
+      let spawnIntervalBase = 1500;
+      let speedBase = 3.5;
+      let blackChanceBase = 0.05;
+      let heartSpawnInterval = 12000;
+      let rainbowSpawnInterval = 15000;
+      
+      switch (baseDifficulty) {
+        case 'easy':
+          difficultyMultiplier = 0.7;
+          spawnIntervalBase = 2000; // Slower spawns
+          speedBase = 2.5; // Slower movement
+          blackChanceBase = 0.03; // Fewer black Labubus
+          heartSpawnInterval = 8000; // More frequent hearts
+          rainbowSpawnInterval = 12000; // More frequent rainbows
+          break;
+        case 'medium':
+          difficultyMultiplier = 1.0;
+          // Use default values
+          break;
+        case 'hard':
+          difficultyMultiplier = 1.4;
+          spawnIntervalBase = 1200; // Faster spawns
+          speedBase = 4.5; // Faster movement
+          blackChanceBase = 0.08; // More black Labubus
+          heartSpawnInterval = 18000; // Less frequent hearts
+          rainbowSpawnInterval = 20000; // Less frequent rainbows
+          break;
+      }
+      
+      return {
+        scoreDifficulty,
+        difficultyMultiplier,
+        spawnIntervalBase,
+        speedBase,
+        blackChanceBase,
+        heartSpawnInterval,
+        rainbowSpawnInterval
+      };
+    };
+    
+    const difficulty = () => {
+      const { scoreDifficulty, difficultyMultiplier } = getDifficultySettings();
+      return clamp01(scoreDifficulty * difficultyMultiplier);
+    };
 
     const chooseGroupSize = () => {
       const d = difficulty();
@@ -145,8 +203,10 @@ export default function LabubuGame() {
 
     const pickLabubuType = (): Labubu['type'] => {
       const d = difficulty();
+      const { blackChanceBase } = getDifficultySettings();
+      
       const pinkChance = 0.04;             // 4% flat - special power-up
-      const blackChance = 0.05 + 0.10 * d; // 5% → 15%
+      const blackChance = blackChanceBase + 0.10 * d; // Adjustable base + progression
       const goldenChance = 0.10;          // ~10% flat
       const r = Math.random();
       if (r < pinkChance) return 'pink';
@@ -174,7 +234,7 @@ export default function LabubuGame() {
           y: -60,
           width: 60,
           height: 60,
-          speed: 3.5 + Math.min(scoreRef.current / 35, 4.5),
+          speed: getDifficultySettings().speedBase + Math.min(scoreRef.current / 35, 4.5),
           type: pickLabubuType(),
           rotation: 0,
           wobble: Math.random() * Math.PI * 2,
@@ -224,15 +284,17 @@ export default function LabubuGame() {
         gameState.unicorn.catchAnimation--;
       }
 
-      // Spawn timing (kept slightly reduced rate; scales with score)
-      const spawnInterval = 1500 - Math.min(scoreRef.current * 5, 1000); // floor ~900ms
+      // Spawn timing (scales with difficulty and score)
+      const { spawnIntervalBase } = getDifficultySettings();
+      const spawnInterval = spawnIntervalBase - Math.min(scoreRef.current * 5, 800); // Dynamic floor
       if (timestamp - lastSpawn > spawnInterval) {
         const n = chooseGroupSize();
         spawnLabubuGroup(n, timestamp);
       }
 
       // Rainbows
-      if (timestamp - rainbowSpawn > 15000) {
+      const { rainbowSpawnInterval } = getDifficultySettings();
+      if (timestamp - rainbowSpawn > rainbowSpawnInterval) {
         gameState.rainbows.push({
           x: Math.random() * (canvas.width - 80),
           y: -80,
@@ -244,7 +306,8 @@ export default function LabubuGame() {
       }
 
       // Hearts
-      if (timestamp - heartSpawn > 12000 && livesRef.current < 5) {
+      const { heartSpawnInterval } = getDifficultySettings();
+      if (timestamp - heartSpawn > heartSpawnInterval && livesRef.current < 5) {
         gameState.hearts.push({
           x: Math.random() * (canvas.width - 40),
           y: -40,
@@ -904,7 +967,15 @@ export default function LabubuGame() {
       powerUpActive: false,
       powerUpTimer: 0,
       frameCount: 0,
+      difficulty: difficulty,
     };
+  };
+
+  const handleDifficultyChange = (newDifficulty: Difficulty) => {
+    setDifficulty(newDifficulty);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('labubuDifficulty', newDifficulty);
+    }
   };
 
   const toggleMute = () => {
@@ -933,6 +1004,11 @@ export default function LabubuGame() {
                 </ul>
               </div>
             </div>
+
+            <DifficultySelector 
+              selectedDifficulty={difficulty}
+              onSelectDifficulty={handleDifficultyChange}
+            />
 
             {score > 0 && (
               <div className="game-over-stats">

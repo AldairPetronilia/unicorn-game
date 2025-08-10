@@ -51,6 +51,8 @@ export interface Particle {
   type: 'star' | 'circle';
 }
 
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
 export interface GameState {
   unicorn: Unicorn;
   labubus: Labubu[];
@@ -64,4 +66,5 @@ export interface GameState {
   powerUpActive: boolean;
   powerUpTimer: number;
   frameCount: number;
+  difficulty: Difficulty;
 }
