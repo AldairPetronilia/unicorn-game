@@ -1,20 +1,14 @@
 export class GameSounds {
   private audioContext: AudioContext | null = null;
   private isMuted: boolean = false;
+  private isInitialized: boolean = false;
 
   constructor() {
-    if (typeof window !== 'undefined') {
-      const AudioContextClass =
-        window.AudioContext ||
-        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (AudioContextClass) {
-        this.audioContext = new AudioContextClass();
-      }
-    }
+    // AudioContext creation is deferred until user interaction
   }
 
   private createOscillator(frequency: number, duration: number, type: OscillatorType = 'sine') {
-    if (!this.audioContext || this.isMuted) return;
+    if (!this.audioContext || this.isMuted || !this.isInitialized) return;
 
     const oscillator = this.audioContext.createOscillator();
     const gainNode = this.audioContext.createGain();
@@ -80,7 +74,7 @@ export class GameSounds {
   }
 
   playBackgroundMusic() {
-    if (!this.audioContext || this.isMuted) return;
+    if (!this.audioContext || this.isMuted || !this.isInitialized) return;
 
     const playNote = (frequency: number, startTime: number, duration: number) => {
       const oscillator = this.audioContext!.createOscillator();
@@ -126,7 +120,7 @@ export class GameSounds {
         playNote(note, startTime + time, duration);
       });
 
-      if (!this.isMuted) {
+      if (!this.isMuted && this.isInitialized) {
         setTimeout(() => scheduleLoop(), loopDuration * 1000);
       }
     };
@@ -139,9 +133,45 @@ export class GameSounds {
     return this.isMuted;
   }
 
-  init() {
-    if (this.audioContext?.state === 'suspended') {
-      this.audioContext.resume();
+  async init(): Promise<boolean> {
+    try {
+      if (typeof window === 'undefined') {
+        return false;
+      }
+
+      // Create AudioContext if it doesn't exist
+      if (!this.audioContext) {
+        const AudioContextClass =
+          window.AudioContext ||
+          (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        
+        if (!AudioContextClass) {
+          console.warn('Web Audio API not supported');
+          return false;
+        }
+
+        this.audioContext = new AudioContextClass();
+      }
+
+      // Resume AudioContext if suspended (mobile requirement)
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume();
+      }
+
+      // Verify AudioContext is running
+      if (this.audioContext.state === 'running') {
+        this.isInitialized = true;
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.warn('Failed to initialize audio:', error);
+      return false;
     }
+  }
+
+  get initialized(): boolean {
+    return this.isInitialized;
   }
 }

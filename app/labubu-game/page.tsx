@@ -848,7 +848,7 @@ export default function LabubuGame() {
     };
   }, [gameStarted, isPaused]); // keep unicorn position stable
 
-  const startGame = () => {
+  const startGame = async () => {
     // Reset state & refs
     setScore(0);
     scoreRef.current = 0;
@@ -857,8 +857,14 @@ export default function LabubuGame() {
 
     setGameStarted(true);
     setIsPaused(false);
-    soundsRef.current?.init();
-    soundsRef.current?.playBackgroundMusic();
+
+    // Initialize audio with user interaction (critical for mobile)
+    const audioInitialized = await soundsRef.current?.init();
+    
+    // Only play background music if audio was successfully initialized
+    if (audioInitialized) {
+      soundsRef.current?.playBackgroundMusic();
+    }
 
     const width = canvasRef.current?.width ?? window.innerWidth;
     const height = canvasRef.current?.height ?? window.innerHeight;
