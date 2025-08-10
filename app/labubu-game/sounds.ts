@@ -50,6 +50,18 @@ export class GameSounds {
     });
   }
 
+  playPinkLabubuSound() {
+    // Magical ascending sequence for pink labubu special ability
+    const notes = [440, 554.37, 659.25, 783.99, 880]; // A4, C#5, E5, G5, A5
+    notes.forEach((note, index) => {
+      setTimeout(() => {
+        this.createOscillator(note, 0.15, 'triangle');
+        // Add shimmer effect with higher octave
+        setTimeout(() => this.createOscillator(note * 2, 0.08, 'sine'), 30);
+      }, index * 80);
+    });
+  }
+
   playHeartSound() {
     this.createOscillator(440, 0.15, 'triangle'); // A4
     setTimeout(() => this.createOscillator(554.37, 0.15, 'triangle'), 100); // C#5

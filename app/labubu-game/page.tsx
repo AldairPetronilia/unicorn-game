@@ -27,11 +27,13 @@ export default function LabubuGame() {
     brownLabubu: HTMLImageElement | null;
     goldenLabubu: HTMLImageElement | null;
     blackLabubu: HTMLImageElement | null;
+    pinkLabubu: HTMLImageElement | null;
     unicorn: HTMLImageElement | null;
   }>({
     brownLabubu: null,
     goldenLabubu: null,
     blackLabubu: null,
+    pinkLabubu: null,
     unicorn: null,
   });
 
@@ -80,10 +82,11 @@ export default function LabubuGame() {
 
       const loadAllImages = async () => {
         try {
-          const [brownLabubu, goldenLabubu, blackLabubu, unicorn] = await Promise.all([
+          const [brownLabubu, goldenLabubu, blackLabubu, pinkLabubu, unicorn] = await Promise.all([
             loadImage('/assets/brown_labubu.png'),
             loadImage('/assets/golden_labubu.png'),
             loadImage('/assets/black_labubu.png'),
+            loadImage('/assets/pink_labubu.png'),
             loadImage('/assets/unicorn.png'),
           ]);
           
@@ -91,6 +94,7 @@ export default function LabubuGame() {
             brownLabubu,
             goldenLabubu,
             blackLabubu,
+            pinkLabubu,
             unicorn,
           };
         } catch (error) {
@@ -141,11 +145,13 @@ export default function LabubuGame() {
 
     const pickLabubuType = (): Labubu['type'] => {
       const d = difficulty();
+      const pinkChance = 0.04;             // 4% flat - special power-up
       const blackChance = 0.05 + 0.10 * d; // 5% → 15%
       const goldenChance = 0.10;          // ~10% flat
       const r = Math.random();
-      if (r < blackChance) return 'black';
-      if (r < blackChance + goldenChance) return 'golden';
+      if (r < pinkChance) return 'pink';
+      if (r < pinkChance + blackChance) return 'black';
+      if (r < pinkChance + blackChance + goldenChance) return 'golden';
       return 'normal';
     };
 
@@ -285,6 +291,60 @@ export default function LabubuGame() {
                 type: Math.random() > 0.5 ? 'star' : 'circle',
               });
             }
+            return false;
+          }
+
+          // Special ability for pink labubu
+          if (labubu.type === 'pink') {
+            // Award points for pink labubu
+            setScore((prev) => {
+              const gained = 30 * (gameState.powerUpActive ? 2 : 1);
+              const next = prev + gained;
+              scoreRef.current = next;
+              if (next > highScore) {
+                setHighScore(next);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('labubuHighScore', next.toString());
+                }
+              }
+              return next;
+            });
+
+            // Special ability: remove all black labubus
+            const blackLabubusRemoved = gameState.labubus.filter(l => l.type === 'black').length;
+            gameState.labubus = gameState.labubus.filter(l => l.type !== 'black');
+
+            // Create extra particles for removed black labubus
+            for (let i = 0; i < blackLabubusRemoved * 8; i++) {
+              gameState.particles.push({
+                x: labubu.x + labubu.width / 2 + (Math.random() - 0.5) * 200,
+                y: labubu.y + labubu.height / 2 + (Math.random() - 0.5) * 200,
+                vx: (Math.random() - 0.5) * 15,
+                vy: (Math.random() - 0.5) * 15,
+                life: 50,
+                size: Math.random() * 5 + 3,
+                color: '#FF1493',
+                type: Math.random() > 0.5 ? 'star' : 'circle',
+              });
+            }
+
+            // Pink sparkles around collected pink labubu
+            for (let i = 0; i < 20; i++) {
+              gameState.particles.push({
+                x: labubu.x + labubu.width / 2,
+                y: labubu.y + labubu.height / 2,
+                vx: (Math.random() - 0.5) * 12,
+                vy: (Math.random() - 0.5) * 12,
+                life: 45,
+                size: Math.random() * 4 + 2,
+                color: '#FF69B4',
+                type: 'star',
+              });
+            }
+
+            soundsRef.current?.playPinkLabubuSound();
+            gameState.combo++; 
+            gameState.unicorn.catchAnimation = 25; // Slightly longer animation
             return false;
           }
 
@@ -474,6 +534,14 @@ export default function LabubuGame() {
         // Black shadow effect
         ctx.shadowColor = 'rgba(0,0,0,0.35)';
         ctx.shadowBlur = 20;
+      } else if (labubu.type === 'pink') {
+        labubuImage = imagesRef.current.pinkLabubu;
+        // Pink magical glow effect
+        ctx.shadowColor = '#FF69B4';
+        ctx.shadowBlur = 30;
+        // Add extra sparkle effect
+        ctx.shadowOffsetX = Math.sin(labubu.wobble * 2) * 2;
+        ctx.shadowOffsetY = Math.cos(labubu.wobble * 2) * 2;
       } else {
         labubuImage = imagesRef.current.brownLabubu;
         ctx.shadowColor = 'transparent';
@@ -502,6 +570,8 @@ export default function LabubuGame() {
           fallbackColor = '#FFD700';
         } else if (labubu.type === 'black') {
           fallbackColor = '#333333';
+        } else if (labubu.type === 'pink') {
+          fallbackColor = '#FF69B4';
         } else {
           fallbackColor = '#8B7355';
         }

@@ -18,7 +18,7 @@ export interface Labubu {
   width: number;
   height: number;
   speed: number;
-  type: 'normal' | 'golden' | 'black';
+  type: 'normal' | 'golden' | 'black' | 'pink';
   rotation: number;
   wobble: number;
   scale: number;
