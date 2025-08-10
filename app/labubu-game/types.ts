@@ -9,6 +9,7 @@ export interface Unicorn {
   catchAnimation: number;
   magnetPull: boolean;
   magnetTimer: number;
+  facingDirection: 'left' | 'right';
 }
 
 export interface Labubu {

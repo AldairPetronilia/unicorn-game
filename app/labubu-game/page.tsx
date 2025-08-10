@@ -21,6 +21,19 @@ export default function LabubuGame() {
 
   const animationRef = useRef<number | undefined>(undefined);
   const soundsRef = useRef<GameSounds | undefined>(undefined);
+  
+  // Image refs for sprites
+  const imagesRef = useRef<{
+    brownLabubu: HTMLImageElement | null;
+    goldenLabubu: HTMLImageElement | null;
+    blackLabubu: HTMLImageElement | null;
+    unicorn: HTMLImageElement | null;
+  }>({
+    brownLabubu: null,
+    goldenLabubu: null,
+    blackLabubu: null,
+    unicorn: null,
+  });
 
   const gameStateRef = useRef<GameState>({
     unicorn: {
@@ -34,6 +47,7 @@ export default function LabubuGame() {
       catchAnimation: 0,
       magnetPull: false,
       magnetTimer: 0,
+      facingDirection: 'right',
     },
     labubus: [],
     rainbows: [],
@@ -53,6 +67,38 @@ export default function LabubuGame() {
       const saved = localStorage.getItem('labubuHighScore');
       if (saved) setHighScore(parseInt(saved, 10));
       soundsRef.current = new GameSounds();
+      
+      // Preload images
+      const loadImage = (src: string): Promise<HTMLImageElement> => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = src;
+        });
+      };
+
+      const loadAllImages = async () => {
+        try {
+          const [brownLabubu, goldenLabubu, blackLabubu, unicorn] = await Promise.all([
+            loadImage('/assets/brown_labubu.png'),
+            loadImage('/assets/golden_labubu.png'),
+            loadImage('/assets/black_labubu.png'),
+            loadImage('/assets/unicorn.png'),
+          ]);
+          
+          imagesRef.current = {
+            brownLabubu,
+            goldenLabubu,
+            blackLabubu,
+            unicorn,
+          };
+        } catch (error) {
+          console.warn('Failed to load some game images:', error);
+        }
+      };
+
+      loadAllImages();
     }
   }, []);
 
@@ -157,7 +203,15 @@ export default function LabubuGame() {
 
       // Clamp + ease
       gameState.unicorn.targetX = Math.max(0, Math.min(canvas.width - gameState.unicorn.width, gameState.unicorn.targetX));
+      
+      // Track movement direction for sprite flipping
+      const previousX = gameState.unicorn.x;
       gameState.unicorn.x += (gameState.unicorn.targetX - gameState.unicorn.x) * 0.25;
+      
+      // Update facing direction based on movement (with small threshold to avoid jitter)
+      if (Math.abs(gameState.unicorn.x - previousX) > 0.5) {
+        gameState.unicorn.facingDirection = gameState.unicorn.x > previousX ? 'right' : 'left';
+      }
 
       // Catch animation timer
       if (gameState.unicorn.catchAnimation > 0) {
@@ -408,14 +462,20 @@ export default function LabubuGame() {
       const scale = labubu.scale || 1;
       ctx.scale(scale, scale);
 
-      // Golden glow
+      // Get the appropriate image based on labubu type
+      let labubuImage: HTMLImageElement | null = null;
       if (labubu.type === 'golden') {
+        labubuImage = imagesRef.current.goldenLabubu;
+        // Golden glow effect
         ctx.shadowColor = '#FFD700';
         ctx.shadowBlur = 25;
       } else if (labubu.type === 'black') {
+        labubuImage = imagesRef.current.blackLabubu;
+        // Black shadow effect
         ctx.shadowColor = 'rgba(0,0,0,0.35)';
         ctx.shadowBlur = 20;
       } else {
+        labubuImage = imagesRef.current.brownLabubu;
         ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
       }
@@ -426,129 +486,36 @@ export default function LabubuGame() {
       ctx.ellipse(0, labubu.height / 2 - 5, labubu.width / 3, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Body gradient
-      let gradient: CanvasGradient;
-      if (labubu.type === 'golden') {
-        gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
-        gradient.addColorStop(0, '#FFEB3B');
-        gradient.addColorStop(0.5, '#FFD700');
-        gradient.addColorStop(1, '#FFA000');
-      } else if (labubu.type === 'black') {
-        gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
-        gradient.addColorStop(0, '#3a3a3a');
-        gradient.addColorStop(0.6, '#1d1d1d');
-        gradient.addColorStop(1, '#0c0c0c');
+      // Draw the labubu image if loaded, otherwise fallback to colored rectangle
+      if (labubuImage && labubuImage.complete) {
+        ctx.drawImage(
+          labubuImage,
+          -labubu.width / 2,
+          -labubu.height / 2,
+          labubu.width,
+          labubu.height
+        );
       } else {
-        gradient = ctx.createRadialGradient(0, -5, 0, 0, 5, labubu.width / 2);
-        gradient.addColorStop(0, '#E7CBA6');
-        gradient.addColorStop(0.5, '#A6886B');
-        gradient.addColorStop(1, '#6B5D54');
-      }
-      ctx.fillStyle = gradient;
-
-      // Fluffy body
-      ctx.beginPath();
-      ctx.ellipse(0, 0, labubu.width / 2 - 2, labubu.height / 2 - 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Outline
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle =
-        labubu.type === 'golden' ? '#B8860B' :
-        labubu.type === 'black'  ? '#000000' : '#4E4038';
-      ctx.stroke();
-
-      // Texture puffs
-      ctx.strokeStyle =
-        labubu.type === 'golden' ? '#FFE082' :
-        labubu.type === 'black'  ? '#2b2b2b' : '#A89585';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 8; i++) {
-        const angle = (i * Math.PI * 2) / 8;
+        // Fallback rendering if image not loaded
+        let fallbackColor: string;
+        if (labubu.type === 'golden') {
+          fallbackColor = '#FFD700';
+        } else if (labubu.type === 'black') {
+          fallbackColor = '#333333';
+        } else {
+          fallbackColor = '#8B7355';
+        }
+        ctx.fillStyle = fallbackColor;
         ctx.beginPath();
-        ctx.arc(Math.cos(angle) * 18, Math.sin(angle) * 18, 8, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // Ears
-      ctx.fillStyle =
-        labubu.type === 'golden' ? '#FFD700' :
-        labubu.type === 'black'  ? '#1a1a1a' : '#8B7355';
-      ctx.beginPath();
-      ctx.ellipse(-18, -22, 14, 18, -0.3, 0, Math.PI * 2);
-      ctx.ellipse(18, -22, 14, 18, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Inner ears
-      ctx.fillStyle =
-        labubu.type === 'golden' ? '#FFE082' :
-        labubu.type === 'black'  ? '#2d2d2d' : '#D4A574';
-      ctx.beginPath();
-      ctx.ellipse(-16, -20, 8, 10, -0.3, 0, Math.PI * 2);
-      ctx.ellipse(16, -20, 8, 10, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Eyes
-      if (labubu.type === 'black') {
-        // Red eyes for danger
-        ctx.fillStyle = '#a60b0b';
-        ctx.beginPath();
-        ctx.ellipse(-12, -5, 5, 6, 0, 0, Math.PI * 2);
-        ctx.ellipse(12, -5, 5, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        ctx.fillStyle = '#000';
-        ctx.beginPath();
-        ctx.ellipse(-12, -5, 5, 6, 0, 0, Math.PI * 2);
-        ctx.ellipse(12, -5, 5, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Eye sparkle
-        ctx.fillStyle = '#FFF';
-        ctx.beginPath();
-        ctx.arc(-10, -7, 2, 0, Math.PI * 2);
-        ctx.arc(14, -7, 2, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, labubu.width / 2 - 2, labubu.height / 2 - 2, 0, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // Nose + smile/menace
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.ellipse(0, 2, 3, 2, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // Reset shadow for additional effects
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
 
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      if (labubu.type === 'black') {
-        // sneer
-        ctx.arc(0, 7, 10, 0.9 * Math.PI, 0.1 * Math.PI, true);
-      } else {
-        ctx.arc(0, 6, 10, 0.1 * Math.PI, 0.9 * Math.PI);
-      }
-      ctx.stroke();
-
-      // Teeth
-      ctx.fillStyle = '#FFF';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      ctx.fillRect(-6, 6, 4, 5);
-      ctx.strokeRect(-6, 6, 4, 5);
-      ctx.fillRect(2, 6, 4, 5);
-      ctx.strokeRect(2, 6, 4, 5);
-
-      // Blush / shadow cheeks
-      if (labubu.type === 'black') {
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      } else {
-        ctx.fillStyle = 'rgba(255, 192, 203, 0.6)';
-      }
-      ctx.beginPath();
-      ctx.arc(-20, 2, 5, 0, Math.PI * 2);
-      ctx.arc(20, 2, 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Twinkling star for golden
+      // Twinkling star for golden labubu
       if (labubu.type === 'golden') {
         ctx.fillStyle = '#FFF';
         ctx.save();
@@ -566,7 +533,7 @@ export default function LabubuGame() {
       }
 
       ctx.restore();
-    };
+    };;
 
     const drawUnicorn = (ctx: CanvasRenderingContext2D, unicorn: Unicorn) => {
       ctx.save();
@@ -574,237 +541,106 @@ export default function LabubuGame() {
       const bounceY = unicorn.bounce || 0;
       const catchScale = unicorn.catchAnimation > 0 ? 1.1 - unicorn.catchAnimation * 0.005 : 1;
 
-      ctx.translate(unicorn.x + 45, unicorn.y + 45 + bounceY);
+      ctx.translate(unicorn.x + unicorn.width / 2, unicorn.y + unicorn.height / 2 + bounceY);
       ctx.scale(catchScale, catchScale);
-      ctx.translate(-45, -45);
+
+      // Add horizontal flipping when moving left (mirror the sprite)
+      if (unicorn.facingDirection === 'left') {
+        ctx.scale(-1, 1); // Flip horizontally (left-right mirroring)
+      }
 
       // Shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
       ctx.beginPath();
-      ctx.ellipse(45, 85, 35, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, unicorn.height / 2 - 5, 35, 8, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      const wingFlap = unicorn.wingFlap || 0;
+      // Draw the unicorn image if loaded, otherwise fallback to original drawing
+      const unicornImage = imagesRef.current.unicorn;
+      if (unicornImage && unicornImage.complete) {
+        // Add slight bounce animation to the image
+        const wingFlap = unicorn.wingFlap || 0;
+        ctx.save();
+        ctx.translate(0, Math.sin(wingFlap * 0.1) * 2);
+        
+        ctx.drawImage(
+          unicornImage,
+          -unicorn.width / 2,
+          -unicorn.height / 2,
+          unicorn.width,
+          unicorn.height
+        );
+        ctx.restore();
+      } else {
+        // Fallback to original procedural drawing if image not loaded
+        ctx.translate(-45, -45);
+        
+        const wingFlap = unicorn.wingFlap || 0;
 
-      // Left wing
-      ctx.save();
-      ctx.translate(20, 40);
-      ctx.rotate(-0.3 + Math.sin(wingFlap * 0.1) * 0.2);
-      const wingGradientL = ctx.createLinearGradient(-20, 0, 0, 30);
-      wingGradientL.addColorStop(0, 'rgba(255, 182, 193, 0.95)');
-      wingGradientL.addColorStop(0.5, 'rgba(255, 192, 203, 0.75)');
-      wingGradientL.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
-      ctx.fillStyle = wingGradientL;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(-25, 10, -20, 30);
-      ctx.quadraticCurveTo(-15, 35, -5, 35);
-      ctx.quadraticCurveTo(-10, 20, 0, 0);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(-5, 10);
-      ctx.quadraticCurveTo(-15, 15, -15, 25);
-      ctx.stroke();
-      ctx.restore();
-
-      // Right wing
-      ctx.save();
-      ctx.translate(70, 40);
-      ctx.rotate(0.3 - Math.sin(wingFlap * 0.1) * 0.2);
-      const wingGradientR = ctx.createLinearGradient(20, 0, 0, 30);
-      wingGradientR.addColorStop(0, 'rgba(255, 182, 193, 0.95)');
-      wingGradientR.addColorStop(0.5, 'rgba(255, 192, 203, 0.75)');
-      wingGradientR.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
-      ctx.fillStyle = wingGradientR;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(25, 10, 20, 30);
-      ctx.quadraticCurveTo(15, 35, 5, 35);
-      ctx.quadraticCurveTo(10, 20, 0, 0);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.beginPath();
-      ctx.moveTo(5, 10);
-      ctx.quadraticCurveTo(15, 15, 15, 25);
-      ctx.stroke();
-      ctx.restore();
-
-      // Body
-      const bodyGradient = ctx.createRadialGradient(45, 50, 10, 45, 50, 35);
-      bodyGradient.addColorStop(0, '#FFFFFF');
-      bodyGradient.addColorStop(0.7, '#FFF5F5');
-      bodyGradient.addColorStop(1, '#FFE5F1');
-      ctx.fillStyle = bodyGradient;
-      ctx.beginPath();
-      ctx.ellipse(45, 50, 35, 32, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Soft outline
-      ctx.lineWidth = 1.25;
-      ctx.strokeStyle = '#E2B6C6';
-      ctx.stroke();
-
-      // Body highlight
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.beginPath();
-      ctx.ellipse(35, 40, 12, 15, -0.3, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Legs + hooves
-      const legPositions = [
-        { x: 25, move: Math.sin(gameStateRef.current.frameCount * 0.1) * 2 },
-        { x: 35, move: Math.sin(gameStateRef.current.frameCount * 0.1 + 1) * 2 },
-        { x: 50, move: Math.sin(gameStateRef.current.frameCount * 0.1 + 2) * 2 },
-        { x: 60, move: Math.sin(gameStateRef.current.frameCount * 0.1 + 3) * 2 }
-      ];
-      legPositions.forEach((leg) => {
-        ctx.fillStyle = '#FFF5F5';
-        ctx.fillRect(leg.x, 70 + leg.move, 10, 18);
-        ctx.fillStyle = '#D4A574';
+        // Left wing
+        ctx.save();
+        ctx.translate(20, 40);
+        ctx.rotate(-0.3 + Math.sin(wingFlap * 0.1) * 0.2);
+        const wingGradientL = ctx.createLinearGradient(-20, 0, 0, 30);
+        wingGradientL.addColorStop(0, 'rgba(255, 182, 193, 0.95)');
+        wingGradientL.addColorStop(0.5, 'rgba(255, 192, 203, 0.75)');
+        wingGradientL.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
+        ctx.fillStyle = wingGradientL;
         ctx.beginPath();
-        ctx.ellipse(leg.x + 5, 88 + leg.move, 6, 4, 0, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Neck
-      ctx.fillStyle = bodyGradient;
-      ctx.beginPath();
-      ctx.ellipse(45, 30, 18, 25, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Head
-      const headGradient = ctx.createRadialGradient(45, 20, 5, 45, 20, 25);
-      headGradient.addColorStop(0, '#FFFFFF');
-      headGradient.addColorStop(1, '#FFF5F5');
-      ctx.fillStyle = headGradient;
-      ctx.beginPath();
-      ctx.ellipse(45, 20, 25, 22, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Ears
-      ctx.fillStyle = '#FFF5F5';
-      ctx.beginPath();
-      ctx.ellipse(28, 10, 7, 10, -0.2, 0, Math.PI * 2);
-      ctx.ellipse(60, 10, 7, 10, 0.2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Muzzle
-      ctx.fillStyle = '#FFE5F1';
-      ctx.beginPath();
-      ctx.ellipse(48, 25, 12, 10, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Nostrils
-      ctx.fillStyle = '#FFB6C1';
-      ctx.beginPath();
-      ctx.ellipse(45, 27, 2, 3, 0, 0, Math.PI * 2);
-      ctx.ellipse(51, 27, 2, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Horn
-      const hornGradient = ctx.createLinearGradient(45, -5, 45, 15);
-      hornGradient.addColorStop(0, '#FFE5B4');
-      hornGradient.addColorStop(0.3, '#FFD700');
-      hornGradient.addColorStop(0.6, '#FFA500');
-      hornGradient.addColorStop(1, '#FFD700');
-      ctx.fillStyle = hornGradient;
-      ctx.beginPath();
-      ctx.moveTo(45, -5);
-      ctx.lineTo(40, 15);
-      ctx.lineTo(50, 15);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#FFF';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(43, 12);
-      ctx.quadraticCurveTo(45, 5, 47, 0);
-      ctx.quadraticCurveTo(45, -3, 45, -5);
-      ctx.stroke();
-
-      // Horn sparkle
-      ctx.strokeStyle = '#FFF';
-      ctx.save();
-      ctx.translate(45, -8);
-      ctx.rotate(gameStateRef.current.frameCount * 0.05);
-      ctx.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const angle = (i * Math.PI) / 2;
         ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(angle) * 6, Math.sin(angle) * 6);
-      }
-      ctx.stroke();
-      ctx.restore();
-
-      // Mane
-      const maneColors = ['#FF69B4', '#FFB6C1', '#DDA0DD', '#BA55D3', '#9370DB'];
-      const maneFlow = Math.sin(gameStateRef.current.frameCount * 0.05) * 2;
-      for (let i = 0; i < 5; i++) {
-        const gradient = ctx.createRadialGradient(25 + i * 4, 10 + i * 3 + maneFlow, 0, 25 + i * 4, 10 + i * 3 + maneFlow, 15);
-        gradient.addColorStop(0, maneColors[i]);
-        gradient.addColorStop(1, maneColors[(i + 1) % maneColors.length]);
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.ellipse(
-          25 + i * 4,
-          10 + i * 3 + maneFlow + Math.sin(gameStateRef.current.frameCount * 0.1 + i) * 2,
-          10 - i * 0.5,
-          15 - i,
-          0.3 + Math.sin(gameStateRef.current.frameCount * 0.05 + i) * 0.1,
-          0,
-          Math.PI * 2
-        );
+        ctx.quadraticCurveTo(-25, 10, -20, 30);
+        ctx.quadraticCurveTo(-15, 35, -5, 35);
+        ctx.quadraticCurveTo(-10, 20, 0, 0);
         ctx.fill();
-      }
-
-      // Tail
-      for (let i = 0; i < 4; i++) {
-        ctx.fillStyle = maneColors[i];
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.ellipse(
-          15 + i * 3,
-          45 + i * 4 + Math.sin(gameStateRef.current.frameCount * 0.1 + i) * 3,
-          8,
-          20,
-          -0.5 + Math.sin(gameStateRef.current.frameCount * 0.05 + i) * 0.2,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
-
-      // Eye
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.ellipse(55, 18, 5, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Eye sparkle
-      ctx.fillStyle = '#FFF';
-      ctx.beginPath();
-      ctx.arc(56, 16, 2, 0, Math.PI * 2);
-      ctx.arc(54, 19, 1, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Eyelashes
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.moveTo(58 + i * 2, 14 + i);
-        ctx.lineTo(60 + i * 2, 12 + i);
+        ctx.moveTo(-5, 10);
+        ctx.quadraticCurveTo(-15, 15, -15, 25);
         ctx.stroke();
+        ctx.restore();
+
+        // Right wing
+        ctx.save();
+        ctx.translate(70, 40);
+        ctx.rotate(0.3 - Math.sin(wingFlap * 0.1) * 0.2);
+        const wingGradientR = ctx.createLinearGradient(20, 0, 0, 30);
+        wingGradientR.addColorStop(0, 'rgba(255, 182, 193, 0.95)');
+        wingGradientR.addColorStop(0.5, 'rgba(255, 192, 203, 0.75)');
+        wingGradientR.addColorStop(1, 'rgba(255, 255, 255, 0.6)');
+        ctx.fillStyle = wingGradientR;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(25, 10, 20, 30);
+        ctx.quadraticCurveTo(15, 35, 5, 35);
+        ctx.quadraticCurveTo(10, 20, 0, 0);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.moveTo(5, 10);
+        ctx.quadraticCurveTo(15, 15, 15, 25);
+        ctx.stroke();
+        ctx.restore();
+
+        // Body
+        const bodyGradient = ctx.createRadialGradient(45, 50, 10, 45, 50, 35);
+        bodyGradient.addColorStop(0, '#FFFFFF');
+        bodyGradient.addColorStop(0.7, '#FFF5F5');
+        bodyGradient.addColorStop(1, '#FFE5F1');
+        ctx.fillStyle = bodyGradient;
+        ctx.beginPath();
+        ctx.ellipse(45, 50, 35, 32, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Simple fallback body if full rendering fails
+        ctx.fillStyle = '#FFE5F1';
+        ctx.beginPath();
+        ctx.ellipse(45, 45, 30, 25, 0, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      // Blush
-      ctx.fillStyle = 'rgba(255, 192, 203, 0.4)';
-      ctx.beginPath();
-      ctx.arc(65, 25, 6, 0, Math.PI * 2);
-      ctx.fill();
-
       ctx.restore();
-    };
+    };;;;
 
     const drawRainbow = (ctx: CanvasRenderingContext2D, r: Rainbow) => {
       const colors = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'];
@@ -970,6 +806,7 @@ export default function LabubuGame() {
         catchAnimation: 0,
         magnetPull: false,
         magnetTimer: 0,
+        facingDirection: 'right',
       },
       labubus: [],
       rainbows: [],
